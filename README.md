@@ -65,3 +65,8 @@ two diameters, `v` for volume. Missing values are `null` (e.g. a scan that
 reported only x for an x+y tumor).
 
 This tool is for personal record-keeping, not medical advice.
+
+## License
+
+[MIT](LICENSE). The vendored libraries (Chart.js, chartjs-plugin-annotation,
+and the date-fns adapter) are also MIT-licensed by their respective authors.
