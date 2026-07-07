@@ -103,13 +103,14 @@
       </div>
       <div class="field">
         <label for="drug-dose">Dose <span class="optional">optional</span></label>
-        <input id="drug-dose" name="dose" type="text" placeholder="e.g. 10 mg" maxlength="30">
+        <input id="drug-dose" name="dose" type="number" step="any" min="0" placeholder="e.g. 10">
       </div>
       <div class="field">
         <label for="drug-note">Note <span class="optional">optional</span></label>
         <input id="drug-note" name="note" type="text" placeholder="e.g. reduced" maxlength="60">
       </div>
       <button class="btn btn-primary" type="submit">Add</button>
+      <button id="drug-cancel" class="btn" type="button" hidden>Cancel</button>
     </form>
   </section>
 
@@ -130,6 +131,7 @@
         <input id="event-label" name="label" type="text" placeholder="e.g. Gamma Knife radiosurgery" required maxlength="80">
       </div>
       <button class="btn btn-primary" type="submit">Add</button>
+      <button id="event-cancel" class="btn" type="button" hidden>Cancel</button>
     </form>
   </section>
 

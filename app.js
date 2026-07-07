@@ -72,7 +72,11 @@
       out.drugs.push({
         id: d.id || uid(), name: d.name, start: d.start,
         end: isDateStr(d.end) ? d.end : null,
-        dose: typeof d.dose === 'string' && d.dose ? d.dose : null,
+        dose: (function (v) {
+          // numeric dose; older backups may carry strings like "10 mg"
+          var n = typeof v === 'number' ? v : (typeof v === 'string' ? parseFloat(v) : NaN);
+          return isNum(n) && n > 0 ? n : null;
+        })(d.dose),
         note: typeof d.note === 'string' && d.note ? d.note : null
       });
     });
@@ -603,22 +607,10 @@
     var sorted = state.drugs.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
     host.innerHTML = '<div class="row-list">' + sorted.map(function (d) {
       var s = shades[shadeKey(d)];
-      var swatch = '<span class="swatch" style="background:' + withAlpha(s.color, s.alpha + 0.1) + '"></span>';
-      if (d.id === editingDrugId) {
-        return '<div class="data-row data-row-edit" data-drug-id="' + d.id + '">' +
-          swatch +
-          '<input type="text" value="' + esc(d.name) + '" data-dfield="name" maxlength="60" aria-label="Medication name">' +
-          '<input type="text" value="' + esc(d.dose || '') + '" data-dfield="dose" placeholder="dose" maxlength="30" aria-label="Dose">' +
-          '<input type="date" value="' + d.start + '" data-dfield="start" aria-label="Start date">' +
-          '<input type="date" value="' + (d.end || '') + '" data-dfield="end" aria-label="End date, empty means ongoing">' +
-          '<input type="text" value="' + esc(d.note || '') + '" data-dfield="note" placeholder="note" maxlength="60" aria-label="Note">' +
-          '<button type="button" class="icon-btn done-btn" data-done-drug title="Done editing" aria-label="Done editing">✓</button>' +
-        '</div>';
-      }
-      return '<div class="data-row" data-drug-id="' + d.id + '">' +
-        swatch +
+      return '<div class="data-row' + (d.id === editingDrugId ? ' editing' : '') + '">' +
+        '<span class="swatch" style="background:' + withAlpha(s.color, s.alpha + 0.1) + '"></span>' +
         '<span class="row-main">' + esc(d.name) +
-          (d.dose ? '<span class="row-dose">' + esc(d.dose) + '</span>' : '') +
+          (d.dose ? '<span class="row-dose">' + d.dose + '</span>' : '') +
           (d.note ? '<span class="row-note">' + esc(d.note) + '</span>' : '') + '</span>' +
         '<span class="row-dates">' + fmtDate(d.start) + ' — ' +
           (d.end ? fmtDate(d.end) : '<span class="ongoing">ongoing</span>') + '</span>' +
@@ -628,18 +620,33 @@
     }).join('') + '</div>';
   }
 
+  // The add form doubles as the edit form: ✎ loads the entry into it,
+  // submit saves back, Cancel (or deleting the entry) returns it to add mode.
+  function setDrugFormMode() {
+    $('#add-drug button[type="submit"]').textContent = editingDrugId ? 'Save changes' : 'Add';
+    $('#drug-cancel').hidden = !editingDrugId;
+  }
+
+  function exitDrugEdit() {
+    editingDrugId = null;
+    $('#add-drug').reset();
+    setDrugFormMode();
+  }
+
   $('#drug-list').addEventListener('click', function (ev) {
     var editBtn = ev.target.closest('[data-edit-drug]');
     if (editBtn) {
-      editingDrugId = editBtn.getAttribute('data-edit-drug');
+      var d = state.drugs.find(function (x) { return x.id === editBtn.getAttribute('data-edit-drug'); });
+      if (!d) return;
+      editingDrugId = d.id;
+      $('#drug-name').value = d.name;
+      $('#drug-start').value = d.start;
+      $('#drug-end').value = d.end || '';
+      $('#drug-dose').value = d.dose === null ? '' : d.dose;
+      $('#drug-note').value = d.note || '';
+      setDrugFormMode();
       renderDrugs();
-      var first = $('#drug-list .data-row-edit input');
-      if (first) first.focus();
-      return;
-    }
-    if (ev.target.closest('[data-done-drug]')) {
-      editingDrugId = null;
-      renderAll(); // re-sorts by start and refreshes swatches/legend
+      $('#drug-name').focus();
       return;
     }
     var btn = ev.target.closest('[data-del-drug]');
@@ -647,44 +654,16 @@
     var d = state.drugs.find(function (x) { return x.id === btn.getAttribute('data-del-drug'); });
     if (!d) return;
     if (armTwoStep(btn, '✕')) {
+      if (d.id === editingDrugId) exitDrugEdit();
       state.drugs = state.drugs.filter(function (x) { return x.id !== d.id; });
       save(); renderAll();
       toast('Deleted ' + d.name);
     }
   });
 
-  // Save-as-you-go while a medication row is in edit mode. The list itself is
-  // not rerendered until ✓ so focus stays put; charts and legend refresh live.
-  $('#drug-list').addEventListener('change', function (ev) {
-    var input = ev.target;
-    var field = input.dataset.dfield;
-    var row = input.closest('[data-drug-id]');
-    if (!field || !row) return;
-    var d = state.drugs.find(function (x) { return x.id === row.dataset.drugId; });
-    if (!d) return;
-
-    if (field === 'name') {
-      var name = input.value.trim();
-      if (name) d.name = name; else input.value = d.name;
-    } else if (field === 'dose') {
-      d.dose = input.value.trim() || null;
-    } else if (field === 'note') {
-      d.note = input.value.trim() || null;
-    } else if (field === 'start') {
-      if (isDateStr(input.value) && (!d.end || input.value <= d.end)) d.start = input.value;
-      else {
-        if (isDateStr(input.value)) toast('The start date must come before the end date.');
-        input.value = d.start;
-      }
-    } else if (field === 'end') {
-      if (input.value === '') d.end = null;
-      else if (isDateStr(input.value) && input.value >= d.start) d.end = input.value;
-      else {
-        if (isDateStr(input.value)) toast('The end date is before the start date.');
-        input.value = d.end || '';
-      }
-    }
-    save(); renderLegend(); renderCharts();
+  $('#drug-cancel').addEventListener('click', function () {
+    exitDrugEdit();
+    renderDrugs();
   });
 
   $('#add-drug').addEventListener('submit', function (ev) {
@@ -692,13 +671,20 @@
     var name = $('#drug-name').value.trim();
     var start = $('#drug-start').value;
     var end = $('#drug-end').value || null;
-    var dose = $('#drug-dose').value.trim() || null;
+    var doseV = $('#drug-dose').value === '' ? null : parseFloat($('#drug-dose').value);
+    var dose = isNum(doseV) && doseV > 0 ? doseV : null;
     var note = $('#drug-note').value.trim() || null;
     if (!name || !isDateStr(start)) return;
     if (end && end < start) { toast('The end date is before the start date.'); return; }
-    state.drugs.push({ id: uid(), name: name, start: start, end: end, dose: dose, note: note });
+    if (editingDrugId) {
+      var d = state.drugs.find(function (x) { return x.id === editingDrugId; });
+      if (d) { d.name = name; d.start = start; d.end = end; d.dose = dose; d.note = note; }
+      exitDrugEdit();
+    } else {
+      state.drugs.push({ id: uid(), name: name, start: start, end: end, dose: dose, note: note });
+      ev.target.reset();
+    }
     save(); renderAll();
-    ev.target.reset();
   });
 
   // ---------------- events section ----------------
@@ -713,15 +699,7 @@
     }
     var sorted = state.events.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
     host.innerHTML = '<div class="row-list">' + sorted.map(function (e) {
-      if (e.id === editingEventId) {
-        return '<div class="data-row data-row-edit" data-event-id="' + e.id + '">' +
-          '<span class="tick"></span>' +
-          '<input type="date" value="' + e.date + '" data-efield="date" aria-label="Event date">' +
-          '<input type="text" value="' + esc(e.label) + '" data-efield="label" maxlength="80" aria-label="Event label">' +
-          '<button type="button" class="icon-btn done-btn" data-done-event title="Done editing" aria-label="Done editing">✓</button>' +
-        '</div>';
-      }
-      return '<div class="data-row" data-event-id="' + e.id + '">' +
+      return '<div class="data-row' + (e.id === editingEventId ? ' editing' : '') + '">' +
         '<span class="tick"></span>' +
         '<span class="row-main">' + esc(e.label) + '</span>' +
         '<span class="row-dates">' + fmtDate(e.date) + '</span>' +
@@ -731,43 +709,43 @@
     }).join('') + '</div>';
   }
 
+  function setEventFormMode() {
+    $('#add-event button[type="submit"]').textContent = editingEventId ? 'Save changes' : 'Add';
+    $('#event-cancel').hidden = !editingEventId;
+  }
+
+  function exitEventEdit() {
+    editingEventId = null;
+    $('#add-event').reset();
+    setEventFormMode();
+  }
+
   $('#event-list').addEventListener('click', function (ev) {
     var editBtn = ev.target.closest('[data-edit-event]');
     if (editBtn) {
-      editingEventId = editBtn.getAttribute('data-edit-event');
+      var e = state.events.find(function (x) { return x.id === editBtn.getAttribute('data-edit-event'); });
+      if (!e) return;
+      editingEventId = e.id;
+      $('#event-date').value = e.date;
+      $('#event-label').value = e.label;
+      setEventFormMode();
       renderEvents();
-      var first = $('#event-list .data-row-edit input');
-      if (first) first.focus();
-      return;
-    }
-    if (ev.target.closest('[data-done-event]')) {
-      editingEventId = null;
-      renderAll();
+      $('#event-label').focus();
       return;
     }
     var btn = ev.target.closest('[data-del-event]');
     if (!btn) return;
     if (armTwoStep(btn, '✕')) {
+      if (btn.getAttribute('data-del-event') === editingEventId) exitEventEdit();
       state.events = state.events.filter(function (x) { return x.id !== btn.getAttribute('data-del-event'); });
       save(); renderAll();
       toast('Event deleted');
     }
   });
 
-  $('#event-list').addEventListener('change', function (ev) {
-    var input = ev.target;
-    var field = input.dataset.efield;
-    var row = input.closest('[data-event-id]');
-    if (!field || !row) return;
-    var e = state.events.find(function (x) { return x.id === row.dataset.eventId; });
-    if (!e) return;
-    if (field === 'date') {
-      if (isDateStr(input.value)) e.date = input.value; else input.value = e.date;
-    } else if (field === 'label') {
-      var label = input.value.trim();
-      if (label) e.label = label; else input.value = e.label;
-    }
-    save(); renderLegend(); renderCharts();
+  $('#event-cancel').addEventListener('click', function () {
+    exitEventEdit();
+    renderEvents();
   });
 
   $('#add-event').addEventListener('submit', function (ev) {
@@ -775,9 +753,15 @@
     var date = $('#event-date').value;
     var label = $('#event-label').value.trim();
     if (!isDateStr(date) || !label) return;
-    state.events.push({ id: uid(), date: date, label: label });
+    if (editingEventId) {
+      var e = state.events.find(function (x) { return x.id === editingEventId; });
+      if (e) { e.date = date; e.label = label; }
+      exitEventEdit();
+    } else {
+      state.events.push({ id: uid(), date: date, label: label });
+      ev.target.reset();
+    }
     save(); renderAll();
-    ev.target.reset();
   });
 
   // ---------------- two-step delete ----------------
