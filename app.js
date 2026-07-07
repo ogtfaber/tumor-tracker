@@ -145,23 +145,33 @@
   function shadeKey(d) { return d.name + '\u0000' + (d.dose || ''); }
 
   // Same medication, different dose → same hue, subtly different band intensity.
-  // Variants are assigned per name in order of first appearance (by start date),
-  // so a dose that comes back later reuses its original shade.
+  // Opacity is ordered by dose: the highest dose gets the lightest shade and
+  // lower doses get progressively more opaque, regardless of entry order.
+  // Doseless periods take the lightest slot.
   function drugShadeMap() {
     var colors = drugColorMap();
     var bandAlpha = parseFloat(cssVar('--band-alpha'));
-    var perName = {};
+    var doses = {};   // name -> distinct doses, sorted descending
+    var noDose = {};  // name -> has at least one doseless period
+    state.drugs.forEach(function (d) {
+      var list = doses[d.name] = doses[d.name] || [];
+      if (d.dose === null) noDose[d.name] = true;
+      else if (list.indexOf(d.dose) === -1) list.push(d.dose);
+    });
+    Object.keys(doses).forEach(function (n) { doses[n].sort(function (a, b) { return b - a; }); });
+
     var map = {};
     state.drugs.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; })
       .forEach(function (d) {
         var key = shadeKey(d);
         if (map[key]) return;
-        var i = perName[d.name] = (perName[d.name] || 0) + 1;
+        var rank = d.dose === null ? 0
+          : doses[d.name].indexOf(d.dose) + (noDose[d.name] ? 1 : 0);
         map[key] = {
           name: d.name,
           dose: d.dose,
           color: colors[d.name],
-          alpha: Math.min(bandAlpha * Math.pow(1.55, i - 1), 0.45)
+          alpha: Math.min(bandAlpha * Math.pow(1.55, rank), 0.45)
         };
       });
     return map;
@@ -245,11 +255,16 @@
       var typeDef = TYPES[tumor.type];
       var card = document.createElement('article');
       card.className = 'chart-card';
+      card.dataset.tumorId = tumor.id;
+      var hasChart = tumor.measurements.length >= 1 && domain;
       card.innerHTML =
         '<div class="chart-card-head">' +
           '<h3 class="chart-title">' + esc(tumor.name) +
             '<span class="type-tag">' + typeDef.label + ' · ' + typeDef.unit + '</span></h3>' +
-          '<div class="stat-line">' + statLine(tumor) + '</div>' +
+          '<div class="chart-head-right">' +
+            '<div class="stat-line">' + statLine(tumor) + '</div>' +
+            (hasChart ? '<button type="button" class="btn btn-ghost btn-png" data-save-png title="Download this chart as a PNG image">Save PNG</button>' : '') +
+          '</div>' +
         '</div>' +
         (tumor.measurements.length >= 1
           ? '<div class="chart-wrap"><canvas></canvas></div>'
@@ -407,6 +422,57 @@
     var sign = pct > 0 ? '+' : '';
     return '<span class="' + cls + '">' + sign + pct.toFixed(1) + '% ' + label + '</span>';
   }
+
+  // ---------------- save chart as PNG ----------------
+  // The chart canvas is transparent and has no title, so the export
+  // composites it onto a surface-colored canvas with the tumor name drawn in.
+
+  function exportChartPng(card) {
+    var tumor = findTumor(card.dataset.tumorId);
+    var canvas = card.querySelector('canvas');
+    var chart = canvas && Chart.getChart(canvas);
+    if (!tumor || !chart) return;
+    var typeDef = TYPES[tumor.type];
+
+    var dpr = Math.max(2, window.devicePixelRatio || 1); // at least 2x for crisp exports
+    var pad = 20, titleH = 34;
+    var w = chart.width, h = chart.height;
+    var out = document.createElement('canvas');
+    out.width = (w + pad * 2) * dpr;
+    out.height = (h + titleH + pad * 2) * dpr;
+    var ctx = out.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    ctx.fillStyle = cssVar('--surface');
+    ctx.fillRect(0, 0, w + pad * 2, h + titleH + pad * 2);
+    ctx.fillStyle = cssVar('--ink');
+    ctx.font = '500 18px ' + (cssVar('--font-display') || 'serif');
+    ctx.fillText(tumor.name, pad, pad + 16);
+    var nameWidth = ctx.measureText(tumor.name).width;
+    ctx.fillStyle = cssVar('--ink-3');
+    ctx.font = '600 10px ' + (cssVar('--font-body') || 'sans-serif');
+    ctx.fillText((typeDef.label + ' · ' + typeDef.unit).toUpperCase(), pad + nameWidth + 10, pad + 15);
+
+    ctx.drawImage(canvas, pad, pad + titleH, w, h);
+
+    var name = tumor.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'chart';
+    out.toBlob(function (blob) {
+      if (!blob) { toast('Could not create the image.'); return; }
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name + '-' + todayStr() + '.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+    }, 'image/png');
+  }
+
+  $('#charts').addEventListener('click', function (ev) {
+    var btn = ev.target.closest('[data-save-png]');
+    if (!btn) return;
+    exportChartPng(btn.closest('.chart-card'));
+  });
 
   // ---------------- tumors section ----------------
 

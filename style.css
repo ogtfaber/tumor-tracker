@@ -360,7 +360,15 @@ input::placeholder { color: var(--ink-3); }
 .stat-line .down { color: var(--drug-2); }          /* shrinkage reads as good */
 .stat-line .sep  { color: var(--ink-3); margin: 0 .35rem; }
 
-.chart-wrap { position: relative; height: 300px; }
+.chart-wrap { position: relative; height: 450px; }
+
+.chart-head-right { display: flex; align-items: center; gap: .9rem; }
+.btn-png {
+  font-size: .72rem;
+  padding: .28rem .65rem;
+  color: var(--ink-3);
+}
+.btn-png:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .chart-note {
   color: var(--ink-3);
   font-size: .8rem;
@@ -570,7 +578,7 @@ main > section:nth-of-type(4) { animation-delay: .24s; }
 
 @media (max-width: 640px) {
   .masthead { padding-top: 2rem; }
-  .chart-wrap { height: 240px; }
+  .chart-wrap { height: 360px; }
   .m-table input { max-width: none; }
   .m-table input[type="number"] { max-width: 5.5rem; }
 }
