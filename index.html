@@ -19,6 +19,11 @@
     <div class="masthead-title">
       <h1>Tumor Tracker</h1>
       <p class="tagline">Your scans, on one timeline.</p>
+      <label class="patient-field">
+        <span class="patient-label">Patient</span>
+        <input id="patient-name" type="text" placeholder="add a name (optional)" maxlength="80"
+               autocomplete="off" title="Shown on saved chart images">
+      </label>
     </div>
     <div class="masthead-actions">
       <button id="btn-import" class="btn btn-ghost" type="button">Import…</button>
@@ -118,7 +123,7 @@
   <section class="data-section" aria-labelledby="events-heading">
     <div class="section-head">
       <h2 id="events-heading">Events</h2>
-      <p class="section-hint">Moments worth marking on the timeline — a surgery, radiation, a diagnosis. Drawn as a thin line on every chart.</p>
+      <p class="section-hint">Moments worth marking on the timeline — a surgery, radiation, a diagnosis. Drawn as a thin line on every chart, or only on one tumor's chart if you pick it.</p>
     </div>
     <div id="event-list"></div>
     <form id="add-event" class="add-form" autocomplete="off">
@@ -129,6 +134,12 @@
       <div class="field grow">
         <label for="event-label">Event</label>
         <input id="event-label" name="label" type="text" placeholder="e.g. Gamma Knife radiosurgery" required maxlength="80">
+      </div>
+      <div class="field">
+        <label for="event-tumor">Applies to</label>
+        <select id="event-tumor" name="tumor">
+          <option value="">Any tumor</option>
+        </select>
       </div>
       <button class="btn btn-primary" type="submit">Add</button>
       <button id="event-cancel" class="btn" type="button" hidden>Cancel</button>

@@ -126,6 +126,35 @@ main, header, footer { position: relative; z-index: 1; }
   font-size: 1.05rem;
 }
 
+.patient-field {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .5rem;
+  margin-top: .55rem;
+}
+.patient-label {
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.patient-field input {
+  font: italic 500 1rem var(--font-display);
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed var(--baseline);
+  border-radius: 0;
+  padding: 0 .1rem .15rem;
+  min-width: 16ch;
+}
+.patient-field input::placeholder { color: var(--ink-3); }
+.patient-field input:focus {
+  outline: none;
+  border-bottom: 1px solid var(--ink-2);
+}
+
 .masthead-actions { display: flex; gap: .5rem; padding-bottom: .2rem; }
 
 .privacy-note {

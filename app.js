@@ -21,7 +21,7 @@
   var armedTimer = null;
 
   function blankState() {
-    return { schemaVersion: SCHEMA_VERSION, tumors: [], drugs: [], events: [] };
+    return { schemaVersion: SCHEMA_VERSION, patient: '', tumors: [], drugs: [], events: [] };
   }
 
   function load() {
@@ -48,6 +48,7 @@
   function normalize(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
     var out = blankState();
+    if (typeof data.patient === 'string') out.patient = data.patient.trim().slice(0, 80);
     (Array.isArray(data.tumors) ? data.tumors : []).forEach(function (t) {
       if (!t || typeof t.name !== 'string' || !TYPES[t.type]) return;
       var tumor = { id: t.id || uid(), name: t.name, type: t.type, measurements: [] };
@@ -82,7 +83,10 @@
     });
     (Array.isArray(data.events) ? data.events : []).forEach(function (e) {
       if (!e || typeof e.label !== 'string' || !isDateStr(e.date)) return;
-      out.events.push({ id: e.id || uid(), date: e.date, label: e.label });
+      // tumorId scopes the event to one tumor's chart; null (or a stale id) means every chart
+      var tumorId = typeof e.tumorId === 'string' && out.tumors.some(function (t) { return t.id === e.tumorId; })
+        ? e.tumorId : null;
+      out.events.push({ id: e.id || uid(), date: e.date, label: e.label, tumorId: tumorId });
     });
     return out;
   }
@@ -208,6 +212,9 @@
   // ---------------- rendering ----------------
 
   function renderAll() {
+    var patientInput = $('#patient-name');
+    if (document.activeElement !== patientInput) patientInput.value = state.patient || '';
+    refreshEventTumorOptions();
     renderLegend();
     renderCharts();
     renderTumors();
@@ -303,7 +310,8 @@
           drawTime: 'beforeDatasetsDraw'
         };
       });
-      state.events.forEach(function (e, i) {
+      state.events.filter(function (e) { return !e.tumorId || e.tumorId === tumor.id; })
+        .forEach(function (e, i) {
         annotations['event' + i] = {
           type: 'line',
           xMin: ts(e.date),
@@ -435,7 +443,8 @@
     var typeDef = TYPES[tumor.type];
 
     var dpr = Math.max(2, window.devicePixelRatio || 1); // at least 2x for crisp exports
-    var pad = 20, titleH = 34;
+    var patient = (state.patient || '').trim();
+    var pad = 20, titleH = patient ? 52 : 34; // extra line under the title when a patient name is set
     var w = chart.width, h = chart.height;
     var out = document.createElement('canvas');
     out.width = (w + pad * 2) * dpr;
@@ -452,10 +461,16 @@
     ctx.fillStyle = cssVar('--ink-3');
     ctx.font = '600 10px ' + (cssVar('--font-body') || 'sans-serif');
     ctx.fillText((typeDef.label + ' · ' + typeDef.unit).toUpperCase(), pad + nameWidth + 10, pad + 15);
+    if (patient) {
+      ctx.fillStyle = cssVar('--ink-2');
+      ctx.font = 'italic 500 12px ' + (cssVar('--font-body') || 'sans-serif');
+      ctx.fillText(patient, pad, pad + 35);
+    }
 
     ctx.drawImage(canvas, pad, pad + titleH, w, h);
 
-    var name = tumor.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'chart';
+    var slug = function (s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); };
+    var name = [slug(patient), slug(tumor.name)].filter(Boolean).join('-') || 'chart';
     out.toBlob(function (blob) {
       if (!blob) { toast('Could not create the image.'); return; }
       var a = document.createElement('a');
@@ -535,9 +550,8 @@
 
     if (input.hasAttribute('data-rename')) {
       var name = input.value.trim();
-      if (name) { tumor.name = name; save(); renderLegend(); renderCharts(); }
-      else { input.value = tumor.name; }
-      renderTumors();
+      if (name) { tumor.name = name; save(); renderAll(); }
+      else { input.value = tumor.name; renderTumors(); }
       return;
     }
 
@@ -641,6 +655,8 @@
     if (btn.hasAttribute('data-del-tumor')) {
       if (armTwoStep(btn, 'Delete “' + tumor.name + '”?')) {
         state.tumors = state.tumors.filter(function (t) { return t.id !== tumor.id; });
+        // events scoped to the deleted tumor fall back to appearing on every chart
+        state.events.forEach(function (e) { if (e.tumorId === tumor.id) e.tumorId = null; });
         save(); renderAll();
         toast('Deleted ' + tumor.name);
       }
@@ -757,6 +773,17 @@
 
   var editingEventId = null;
 
+  // Keep the "Applies to" dropdown in sync with the tumor list, preserving the selection.
+  function refreshEventTumorOptions() {
+    var sel = $('#event-tumor');
+    var current = sel.value;
+    sel.innerHTML = '<option value="">Any tumor</option>' + state.tumors.map(function (t) {
+      return '<option value="' + t.id + '">' + esc(t.name) + '</option>';
+    }).join('');
+    sel.value = current;
+    if (sel.selectedIndex === -1) sel.selectedIndex = 0;
+  }
+
   function renderEvents() {
     var host = $('#event-list');
     if (!state.events.length) {
@@ -765,9 +792,11 @@
     }
     var sorted = state.events.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
     host.innerHTML = '<div class="row-list">' + sorted.map(function (e) {
+      var scope = e.tumorId ? findTumor(e.tumorId) : null;
       return '<div class="data-row' + (e.id === editingEventId ? ' editing' : '') + '">' +
         '<span class="tick"></span>' +
-        '<span class="row-main">' + esc(e.label) + '</span>' +
+        '<span class="row-main">' + esc(e.label) +
+          (scope ? '<span class="row-note">' + esc(scope.name) + '</span>' : '') + '</span>' +
         '<span class="row-dates">' + fmtDate(e.date) + '</span>' +
         '<button type="button" class="icon-btn edit-btn" data-edit-event="' + e.id + '" title="Edit" aria-label="Edit event">✎</button>' +
         '<button type="button" class="icon-btn" data-del-event="' + e.id + '" title="Delete" aria-label="Delete event">✕</button>' +
@@ -794,6 +823,7 @@
       editingEventId = e.id;
       $('#event-date').value = e.date;
       $('#event-label').value = e.label;
+      $('#event-tumor').value = e.tumorId || '';
       setEventFormMode();
       renderEvents();
       $('#event-label').focus();
@@ -818,13 +848,14 @@
     ev.preventDefault();
     var date = $('#event-date').value;
     var label = $('#event-label').value.trim();
+    var tumorId = findTumor($('#event-tumor').value) ? $('#event-tumor').value : null;
     if (!isDateStr(date) || !label) return;
     if (editingEventId) {
       var e = state.events.find(function (x) { return x.id === editingEventId; });
-      if (e) { e.date = date; e.label = label; }
+      if (e) { e.date = date; e.label = label; e.tumorId = tumorId; }
       exitEventEdit();
     } else {
-      state.events.push({ id: uid(), date: date, label: label });
+      state.events.push({ id: uid(), date: date, label: label, tumorId: tumorId });
       ev.target.reset();
     }
     save(); renderAll();
@@ -899,6 +930,15 @@
       toast('Data imported.');
     };
     reader.readAsText(file);
+  });
+
+  // ---------------- patient name ----------------
+  // Optional; shown on saved chart images so a printout identifies whose scans these are.
+
+  $('#patient-name').addEventListener('change', function (ev) {
+    state.patient = ev.target.value.trim().slice(0, 80);
+    ev.target.value = state.patient;
+    save();
   });
 
   // ---------------- theme changes ----------------
