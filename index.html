@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>Tumor Tracker — your scans, on one timeline</title>
+<meta name="description" content="A private, in-browser journal for tumor measurements. Plot your scans over time with your medications overlaid. Nothing ever leaves your device.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="masthead-title">
+      <h1>Tumor Tracker</h1>
+      <p class="tagline">Your scans, on one timeline.</p>
+    </div>
+    <div class="masthead-actions">
+      <button id="btn-import" class="btn btn-ghost" type="button">Import…</button>
+      <button id="btn-export" class="btn btn-ghost" type="button">Download my data</button>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
+    </div>
+  </div>
+  <p class="privacy-note">
+    <svg class="lock" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 7V5a4 4 0 1 1 8 0v2h.5A1.5 1.5 0 0 1 14 8.5v5A1.5 1.5 0 0 1 12.5 15h-9A1.5 1.5 0 0 1 2 13.5v-5A1.5 1.5 0 0 1 3.5 7H4Zm1.5 0h5V5a2.5 2.5 0 0 0-5 0v2Z" fill="currentColor"/></svg>
+    <span>Everything you enter is stored only in this browser, on this device. Nothing is sent anywhere.
+    Download a copy now and then as a backup — and <strong>bookmark this page</strong>
+    (<kbd>⌘D</kbd> / <kbd>Ctrl+D</kbd>) so you can always find your way back to your data.</span>
+  </p>
+</header>
+
+<main>
+
+  <!-- ============ CHARTS ============ -->
+  <section id="charts-section" aria-label="Charts">
+    <div id="overlay-legend" class="overlay-legend" hidden></div>
+    <div id="charts"></div>
+
+    <div id="empty-state" class="empty-state" hidden>
+      <h2>Start your timeline</h2>
+      <p>
+        Add a tumor below, then enter the measurements from your scan reports.
+        Each tumor gets its own chart, and the medications you record are shaded
+        behind every chart — so you can see, at a glance, what changed while
+        you were on what.
+      </p>
+      <ol class="empty-steps">
+        <li><strong>Add a tumor</strong> and choose how it's measured — a single diameter, two diameters, or a volume.</li>
+        <li><strong>Enter measurements</strong> from each scan, with the scan date.</li>
+        <li><strong>Record medications</strong> and important events to overlay them on the charts.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ TUMORS ============ -->
+  <section class="data-section" aria-labelledby="tumors-heading">
+    <div class="section-head">
+      <h2 id="tumors-heading">Tumors</h2>
+      <p class="section-hint">One entry per tumor. If your clinic changes measurement method, add it as a new tumor (e.g. “Left VS — volumetric”).</p>
+    </div>
+    <div id="tumor-list"></div>
+    <form id="add-tumor" class="add-form" autocomplete="off">
+      <div class="field grow">
+        <label for="tumor-name">Tumor name</label>
+        <input id="tumor-name" name="name" type="text" placeholder="e.g. Left vestibular schwannoma" required maxlength="80">
+      </div>
+      <div class="field">
+        <label for="tumor-type">Measured as</label>
+        <select id="tumor-type" name="type" required>
+          <option value="x">Single diameter (mm)</option>
+          <option value="xy">Two diameters, x + y (mm)</option>
+          <option value="vol">Volume (cm³)</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit">Add tumor</button>
+    </form>
+  </section>
+
+  <!-- ============ MEDICATIONS ============ -->
+  <section class="data-section" aria-labelledby="drugs-heading">
+    <div class="section-head">
+      <h2 id="drugs-heading">Medications</h2>
+      <p class="section-hint">Shaded behind every chart. Leave the end date empty for a medication you're still on. A dose change is just a new period with the same name.</p>
+    </div>
+    <div id="drug-list"></div>
+    <form id="add-drug" class="add-form" autocomplete="off">
+      <div class="field grow">
+        <label for="drug-name">Medication</label>
+        <input id="drug-name" name="name" type="text" placeholder="e.g. Everolimus" required maxlength="60">
+      </div>
+      <div class="field">
+        <label for="drug-start">Started</label>
+        <input id="drug-start" name="start" type="date" required>
+      </div>
+      <div class="field">
+        <label for="drug-end">Stopped <span class="optional">optional</span></label>
+        <input id="drug-end" name="end" type="date">
+      </div>
+      <div class="field">
+        <label for="drug-note">Dose / note <span class="optional">optional</span></label>
+        <input id="drug-note" name="note" type="text" placeholder="e.g. 10 mg, reduced" maxlength="60">
+      </div>
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+  </section>
+
+  <!-- ============ LIFE EVENTS ============ -->
+  <section class="data-section" aria-labelledby="events-heading">
+    <div class="section-head">
+      <h2 id="events-heading">Events</h2>
+      <p class="section-hint">Moments worth marking on the timeline — a surgery, radiation, a diagnosis. Drawn as a thin line on every chart.</p>
+    </div>
+    <div id="event-list"></div>
+    <form id="add-event" class="add-form" autocomplete="off">
+      <div class="field">
+        <label for="event-date">Date</label>
+        <input id="event-date" name="date" type="date" required>
+      </div>
+      <div class="field grow">
+        <label for="event-label">Event</label>
+        <input id="event-label" name="label" type="text" placeholder="e.g. Gamma Knife radiosurgery" required maxlength="80">
+      </div>
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <p>
+    This is a personal record-keeping tool, not medical advice. Measurements vary between
+    scanners, facilities, and readers — always discuss trends with your care team.
+  </p>
+  <p class="footer-fine">Data lives in this browser's local storage · <button id="btn-export-2" class="linklike" type="button">download a backup</button> · clearing your browser data will erase it.</p>
+</footer>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="vendor/chart.umd.min.js"></script>
+<script src="vendor/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="vendor/chartjs-plugin-annotation.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
