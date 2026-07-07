@@ -309,6 +309,7 @@ input::placeholder { color: var(--ink-3); }
 .empty-state p { color: var(--ink-2); max-width: 62ch; margin: 0 0 1rem; }
 .empty-steps { margin: 0; padding-left: 1.2rem; color: var(--ink-2); display: grid; gap: .4rem; max-width: 62ch; }
 .empty-steps strong { color: var(--ink); }
+.empty-state .example-note { color: var(--ink-3); font-style: italic; }
 
 /* ---------------- overlay legend ---------------- */
 
@@ -367,6 +368,20 @@ input::placeholder { color: var(--ink-3); }
   font-weight: 500;
   font-size: 1.25rem;
   margin: 0;
+}
+.chart-title .example-tag {
+  font-family: var(--font-body);
+  font-size: .66rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: .1rem .5rem;
+  margin-left: .55rem;
+  vertical-align: 2px;
+  white-space: nowrap;
 }
 .chart-title .type-tag {
   font-family: var(--font-body);

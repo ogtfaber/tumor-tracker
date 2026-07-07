@@ -91,6 +91,55 @@
     return out;
   }
 
+  // ---------------- sample data for fresh visitors ----------------
+  // While nothing has been saved yet, the charts section renders this
+  // read-only example so a new visitor sees what the app produces. It lives
+  // only in memory — never in localStorage — and vanishes at the first real
+  // entry. The editable sections below always work on the real state.
+
+  var sampleCache = null;
+
+  function viewState() {
+    if (state.tumors.length || state.drugs.length || state.events.length) return state;
+    if (!sampleCache) sampleCache = sampleState();
+    return sampleCache;
+  }
+
+  function sampleState() {
+    // months back from today, pinned mid-month so setMonth can't overshoot
+    function ago(months) {
+      var d = new Date();
+      d.setDate(15);
+      d.setMonth(d.getMonth() - months);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      patient: '',
+      tumors: [{
+        id: 'sample-tumor',
+        name: 'Left vestibular schwannoma (example)',
+        type: 'xy',
+        measurements: [
+          { id: 'sm1', date: ago(24), x: 14.2, y: 9.8,  note: 'first MRI' },
+          { id: 'sm2', date: ago(21), x: 15.0, y: 10.4, note: null },
+          { id: 'sm3', date: ago(18), x: 16.1, y: 11.1, note: null },
+          { id: 'sm4', date: ago(15), x: 17.0, y: 11.8, note: null },
+          { id: 'sm5', date: ago(11), x: 16.7, y: 11.6, note: 'first scan after treatment' },
+          { id: 'sm6', date: ago(7),  x: 16.0, y: 11.1, note: null },
+          { id: 'sm7', date: ago(3),  x: 15.2, y: 10.5, note: null }
+        ]
+      }],
+      drugs: [
+        { id: 'sample-drug-1', name: 'Everolimus', start: ago(16), end: ago(8), dose: 10, note: null },
+        { id: 'sample-drug-2', name: 'Everolimus', start: ago(8), end: null, dose: 5, note: null }
+      ],
+      events: [
+        { id: 'sample-event', date: ago(14), label: 'Gamma Knife radiosurgery', tumorId: 'sample-tumor' }
+      ]
+    };
+  }
+
   // ---------------- small helpers ----------------
 
   function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
@@ -139,7 +188,7 @@
   // Drug name → color slot. Names get slots in order of first appearance (by start date).
   function drugColorMap() {
     var names = [];
-    state.drugs.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; })
+    viewState().drugs.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; })
       .forEach(function (d) { if (names.indexOf(d.name) === -1) names.push(d.name); });
     var map = {};
     names.forEach(function (n, i) { map[n] = cssVar('--drug-' + ((i % DRUG_SLOTS) + 1)); });
@@ -153,11 +202,12 @@
   // higher doses get progressively more opaque, regardless of entry order.
   // Doseless periods take the lightest slot.
   function drugShadeMap() {
+    var vs = viewState();
     var colors = drugColorMap();
     var bandAlpha = parseFloat(cssVar('--band-alpha'));
     var doses = {};   // name -> distinct doses, sorted ascending
     var noDose = {};  // name -> has at least one doseless period
-    state.drugs.forEach(function (d) {
+    vs.drugs.forEach(function (d) {
       var list = doses[d.name] = doses[d.name] || [];
       if (d.dose === null) noDose[d.name] = true;
       else if (list.indexOf(d.dose) === -1) list.push(d.dose);
@@ -165,7 +215,7 @@
     Object.keys(doses).forEach(function (n) { doses[n].sort(function (a, b) { return a - b; }); });
 
     var map = {};
-    state.drugs.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; })
+    vs.drugs.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; })
       .forEach(function (d) {
         var key = shadeKey(d);
         if (map[key]) return;
@@ -186,21 +236,22 @@
   // stretch this chart's axis.
 
   function timeDomain(tumor) {
+    var vs = viewState();
     var min = Infinity, max = -Infinity;
-    state.tumors.forEach(function (t) {
+    vs.tumors.forEach(function (t) {
       t.measurements.forEach(function (m) {
         var v = ts(m.date);
         if (v < min) min = v;
         if (v > max) max = v;
       });
     });
-    state.drugs.forEach(function (d) {
+    vs.drugs.forEach(function (d) {
       var s = ts(d.start);
       if (s < min) min = s;
       var e = ts(d.end || todayStr());
       if (e > max) max = e;
     });
-    state.events.forEach(function (e) {
+    vs.events.forEach(function (e) {
       if (tumor && e.tumorId && e.tumorId !== tumor.id) return;
       var v = ts(e.date);
       if (v < min) min = v;
@@ -224,13 +275,15 @@
     renderDrugs();
     renderEvents();
     $('#empty-state').hidden = state.tumors.length > 0;
+    $('#empty-example-note').hidden = viewState() === state;
   }
 
   function renderLegend() {
     var el = $('#overlay-legend');
+    var vs = viewState();
     var shades = drugShadeMap();
     var keys = Object.keys(shades);
-    if (!keys.length && !state.events.length) { el.hidden = true; el.innerHTML = ''; return; }
+    if (!keys.length && !vs.events.length) { el.hidden = true; el.innerHTML = ''; return; }
     var html = '<span class="legend-title">On the charts</span>';
     keys.forEach(function (k) {
       var s = shades[k];
@@ -238,7 +291,7 @@
         withAlpha(s.color, s.alpha + 0.1) + '"></span>' + esc(s.name) +
         (s.dose ? '<span class="legend-dose">' + esc(s.dose) + '</span>' : '') + '</span>';
     });
-    if (state.events.length) {
+    if (vs.events.length) {
       html += '<span class="legend-chip"><span class="legend-tick"></span>events</span>';
     }
     el.innerHTML = html;
@@ -251,6 +304,8 @@
     var host = $('#charts');
     host.innerHTML = '';
 
+    var vs = viewState();
+    var demo = vs !== state; // rendering the read-only example for a fresh visitor
     var shades = drugShadeMap();
     var seriesColors = [cssVar('--series-1'), cssVar('--series-2')];
     var surface = cssVar('--surface');
@@ -260,7 +315,7 @@
     var eventColor = cssVar('--event');
     var bodyFont = cssVar('--font-body') || 'sans-serif';
 
-    state.tumors.forEach(function (tumor) {
+    vs.tumors.forEach(function (tumor) {
       var typeDef = TYPES[tumor.type];
       var domain = timeDomain(tumor);
       var card = document.createElement('article');
@@ -270,10 +325,11 @@
       card.innerHTML =
         '<div class="chart-card-head">' +
           '<h3 class="chart-title">' + esc(tumor.name) +
+            (demo ? '<span class="example-tag">Example</span>' : '') +
             '<span class="type-tag">' + typeDef.label + ' · ' + typeDef.unit + '</span></h3>' +
           '<div class="chart-head-right">' +
             '<div class="stat-line">' + statLine(tumor) + '</div>' +
-            (hasChart ? '<button type="button" class="btn btn-ghost btn-png" data-save-png title="Download this chart as a PNG image">Save PNG</button>' : '') +
+            (hasChart && !demo ? '<button type="button" class="btn btn-ghost btn-png" data-save-png title="Download this chart as a PNG image">Save PNG</button>' : '') +
           '</div>' +
         '</div>' +
         (tumor.measurements.length >= 1
@@ -302,7 +358,7 @@
       }).filter(function (ds) { return ds.data.length > 0; });
 
       var annotations = {};
-      state.drugs.forEach(function (d, i) {
+      vs.drugs.forEach(function (d, i) {
         var s = shades[shadeKey(d)];
         annotations['drug' + i] = {
           type: 'box',
@@ -313,7 +369,7 @@
           drawTime: 'beforeDatasetsDraw'
         };
       });
-      state.events.filter(function (e) { return !e.tumorId || e.tumorId === tumor.id; })
+      vs.events.filter(function (e) { return !e.tumorId || e.tumorId === tumor.id; })
         .forEach(function (e, i) {
         annotations['event' + i] = {
           type: 'line',
