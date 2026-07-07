@@ -145,20 +145,20 @@
   function shadeKey(d) { return d.name + '\u0000' + (d.dose || ''); }
 
   // Same medication, different dose → same hue, subtly different band intensity.
-  // Opacity is ordered by dose: the highest dose gets the lightest shade and
-  // lower doses get progressively more opaque, regardless of entry order.
+  // Opacity is ordered by dose: the lowest dose gets the lightest shade and
+  // higher doses get progressively more opaque, regardless of entry order.
   // Doseless periods take the lightest slot.
   function drugShadeMap() {
     var colors = drugColorMap();
     var bandAlpha = parseFloat(cssVar('--band-alpha'));
-    var doses = {};   // name -> distinct doses, sorted descending
+    var doses = {};   // name -> distinct doses, sorted ascending
     var noDose = {};  // name -> has at least one doseless period
     state.drugs.forEach(function (d) {
       var list = doses[d.name] = doses[d.name] || [];
       if (d.dose === null) noDose[d.name] = true;
       else if (list.indexOf(d.dose) === -1) list.push(d.dose);
     });
-    Object.keys(doses).forEach(function (n) { doses[n].sort(function (a, b) { return b - a; }); });
+    Object.keys(doses).forEach(function (n) { doses[n].sort(function (a, b) { return a - b; }); });
 
     var map = {};
     state.drugs.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; })
