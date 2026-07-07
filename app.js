@@ -181,9 +181,11 @@
     return map;
   }
 
-  // ---------------- derived: shared time domain ----------------
+  // ---------------- derived: time domain ----------------
+  // Shared across charts, except events scoped to another tumor don't
+  // stretch this chart's axis.
 
-  function timeDomain() {
+  function timeDomain(tumor) {
     var min = Infinity, max = -Infinity;
     state.tumors.forEach(function (t) {
       t.measurements.forEach(function (m) {
@@ -199,6 +201,7 @@
       if (e > max) max = e;
     });
     state.events.forEach(function (e) {
+      if (tumor && e.tumorId && e.tumorId !== tumor.id) return;
       var v = ts(e.date);
       if (v < min) min = v;
       if (v > max) max = v;
@@ -248,7 +251,6 @@
     var host = $('#charts');
     host.innerHTML = '';
 
-    var domain = timeDomain();
     var shades = drugShadeMap();
     var seriesColors = [cssVar('--series-1'), cssVar('--series-2')];
     var surface = cssVar('--surface');
@@ -260,6 +262,7 @@
 
     state.tumors.forEach(function (tumor) {
       var typeDef = TYPES[tumor.type];
+      var domain = timeDomain(tumor);
       var card = document.createElement('article');
       card.className = 'chart-card';
       card.dataset.tumorId = tumor.id;
@@ -446,14 +449,41 @@
     var patient = (state.patient || '').trim();
     var pad = 20, titleH = patient ? 52 : 34; // extra line under the title when a patient name is set
     var w = chart.width, h = chart.height;
+    var bodyFont = cssVar('--font-body') || 'sans-serif';
+
+    // The overlay legend (medication shades, events) is HTML, not part of the
+    // chart canvas — redraw it below the chart so the image stands on its own.
+    var shades = drugShadeMap();
+    var legendItems = Object.keys(shades).map(function (k) {
+      var s = shades[k];
+      return { swatch: withAlpha(s.color, s.alpha + 0.1), label: s.name + (s.dose ? ' ' + s.dose : '') };
+    });
+    if (state.events.some(function (e) { return !e.tumorId || e.tumorId === tumor.id; })) {
+      legendItems.push({ tick: true, label: 'events' });
+    }
+
     var out = document.createElement('canvas');
-    out.width = (w + pad * 2) * dpr;
-    out.height = (h + titleH + pad * 2) * dpr;
     var ctx = out.getContext('2d');
-    ctx.scale(dpr, dpr);
+    var rowH = 19;
+    var legendRows = [];
+    ctx.font = '500 11px ' + bodyFont;
+    var line = [], lx = 0;
+    legendItems.forEach(function (it) {
+      var itemW = 12 + 5 + ctx.measureText(it.label).width;
+      if (line.length && lx + itemW > w) { legendRows.push(line); line = []; lx = 0; }
+      it.x = lx;
+      line.push(it);
+      lx += itemW + 16;
+    });
+    if (line.length) legendRows.push(line);
+    var legendH = legendRows.length ? legendRows.length * rowH + 8 : 0;
+
+    out.width = (w + pad * 2) * dpr;
+    out.height = (h + titleH + legendH + pad * 2) * dpr;
+    ctx.scale(dpr, dpr); // resizing reset the context, including the font set above
 
     ctx.fillStyle = cssVar('--surface');
-    ctx.fillRect(0, 0, w + pad * 2, h + titleH + pad * 2);
+    ctx.fillRect(0, 0, w + pad * 2, h + titleH + legendH + pad * 2);
     ctx.fillStyle = cssVar('--ink');
     ctx.font = '500 18px ' + (cssVar('--font-display') || 'serif');
     ctx.fillText(tumor.name, pad, pad + 16);
@@ -468,6 +498,23 @@
     }
 
     ctx.drawImage(canvas, pad, pad + titleH, w, h);
+
+    ctx.font = '500 11px ' + bodyFont;
+    legendRows.forEach(function (row, r) {
+      var y = pad + titleH + h + 12 + r * rowH;
+      row.forEach(function (it) {
+        var ix = pad + it.x;
+        if (it.tick) {
+          ctx.fillStyle = cssVar('--event');
+          ctx.fillRect(ix + 5, y, 1.5, 12);
+        } else {
+          ctx.fillStyle = it.swatch;
+          ctx.fillRect(ix, y, 12, 12);
+        }
+        ctx.fillStyle = cssVar('--ink-2');
+        ctx.fillText(it.label, ix + 17, y + 10);
+      });
+    });
 
     var slug = function (s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); };
     var name = [slug(patient), slug(tumor.name)].filter(Boolean).join('-') || 'chart';
