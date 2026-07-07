@@ -301,6 +301,7 @@ input::placeholder { color: var(--ink-3); }
   margin-right: .2rem;
 }
 .legend-chip { display: inline-flex; align-items: center; gap: .38rem; }
+.legend-chip .legend-dose { color: var(--ink-3); font-size: .72rem; margin-left: .1rem; }
 .legend-swatch {
   width: 14px; height: 14px;
   border-radius: 3px;
@@ -426,6 +427,8 @@ input::placeholder { color: var(--ink-3); }
 .m-table td:last-child, .m-table th:last-child { width: 2.2rem; padding-right: 0; }
 .m-table input { max-width: 11rem; }
 .m-table input[type="number"] { max-width: 7.5rem; font-variant-numeric: tabular-nums; }
+.m-table .note-input { max-width: none; width: 100%; color: var(--ink-2); font-style: italic; }
+.m-table .note-input::placeholder { font-style: italic; }
 .m-table .new-row input { background: transparent; border-style: dashed; }
 .m-table .new-row input:focus { border-style: solid; background: var(--surface); }
 
@@ -486,6 +489,27 @@ input::placeholder { color: var(--ink-3); }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.data-row .row-dose {
+  color: var(--accent-ink);
+  font-size: .78rem;
+  font-weight: 600;
+  margin-left: .45rem;
+  white-space: nowrap;
+}
+
+.data-row .edit-btn:hover,
+.data-row .done-btn { color: var(--accent-ink); }
+.data-row .edit-btn:hover { background: color-mix(in srgb, var(--accent-ink) 10%, transparent); }
+.data-row .done-btn:hover { background: color-mix(in srgb, var(--accent-ink) 12%, transparent); color: var(--accent-ink); }
+
+.data-row-edit { gap: .5rem; }
+.data-row-edit input { font-size: .84rem; padding: .3rem .45rem; }
+.data-row-edit input[data-dfield="name"] { flex: 1 1 9rem; min-width: 7rem; }
+.data-row-edit input[data-dfield="dose"] { flex: 0 1 5.5rem; min-width: 4.5rem; }
+.data-row-edit input[data-dfield="note"] { flex: 1 1 7rem; min-width: 5.5rem; font-style: italic; }
+.data-row-edit input[type="date"] { flex: 0 0 auto; }
+.data-row-edit input[data-efield="label"] { flex: 1 1 12rem; }
+
 .data-row .ongoing {
   color: var(--accent-ink);
   font-size: .72rem;

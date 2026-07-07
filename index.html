@@ -85,7 +85,7 @@
   <section class="data-section" aria-labelledby="drugs-heading">
     <div class="section-head">
       <h2 id="drugs-heading">Medications</h2>
-      <p class="section-hint">Shaded behind every chart. Leave the end date empty for a medication you're still on. A dose change is just a new period with the same name.</p>
+      <p class="section-hint">Shaded behind every chart. Leave the end date empty for a medication you're still on. A dose change is just a new period with the same name — each dose gets its own subtle shade.</p>
     </div>
     <div id="drug-list"></div>
     <form id="add-drug" class="add-form" autocomplete="off">
@@ -102,8 +102,12 @@
         <input id="drug-end" name="end" type="date">
       </div>
       <div class="field">
-        <label for="drug-note">Dose / note <span class="optional">optional</span></label>
-        <input id="drug-note" name="note" type="text" placeholder="e.g. 10 mg, reduced" maxlength="60">
+        <label for="drug-dose">Dose <span class="optional">optional</span></label>
+        <input id="drug-dose" name="dose" type="text" placeholder="e.g. 10 mg" maxlength="30">
+      </div>
+      <div class="field">
+        <label for="drug-note">Note <span class="optional">optional</span></label>
+        <input id="drug-note" name="note" type="text" placeholder="e.g. reduced" maxlength="60">
       </div>
       <button class="btn btn-primary" type="submit">Add</button>
     </form>

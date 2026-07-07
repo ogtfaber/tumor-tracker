@@ -53,7 +53,10 @@
       var tumor = { id: t.id || uid(), name: t.name, type: t.type, measurements: [] };
       (Array.isArray(t.measurements) ? t.measurements : []).forEach(function (m) {
         if (!m || !isDateStr(m.date)) return;
-        var rec = { id: m.id || uid(), date: m.date };
+        var rec = {
+          id: m.id || uid(), date: m.date,
+          note: typeof m.note === 'string' && m.note ? m.note : null
+        };
         TYPES[t.type].series.forEach(function (s) {
           rec[s.key] = isNum(m[s.key]) ? m[s.key] : null;
         });
@@ -69,6 +72,7 @@
       out.drugs.push({
         id: d.id || uid(), name: d.name, start: d.start,
         end: isDateStr(d.end) ? d.end : null,
+        dose: typeof d.dose === 'string' && d.dose ? d.dose : null,
         note: typeof d.note === 'string' && d.note ? d.note : null
       });
     });
@@ -108,10 +112,11 @@
     return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
   }
 
+  // Also escapes quotes: esc() output is used inside value="…" attributes.
   function esc(s) {
     var d = document.createElement('div');
     d.textContent = s;
-    return d.innerHTML;
+    return d.innerHTML.replace(/"/g, '&quot;');
   }
 
   var toastTimer = null;
@@ -130,6 +135,31 @@
       .forEach(function (d) { if (names.indexOf(d.name) === -1) names.push(d.name); });
     var map = {};
     names.forEach(function (n, i) { map[n] = cssVar('--drug-' + ((i % DRUG_SLOTS) + 1)); });
+    return map;
+  }
+
+  function shadeKey(d) { return d.name + '\u0000' + (d.dose || ''); }
+
+  // Same medication, different dose → same hue, subtly different band intensity.
+  // Variants are assigned per name in order of first appearance (by start date),
+  // so a dose that comes back later reuses its original shade.
+  function drugShadeMap() {
+    var colors = drugColorMap();
+    var bandAlpha = parseFloat(cssVar('--band-alpha'));
+    var perName = {};
+    var map = {};
+    state.drugs.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; })
+      .forEach(function (d) {
+        var key = shadeKey(d);
+        if (map[key]) return;
+        var i = perName[d.name] = (perName[d.name] || 0) + 1;
+        map[key] = {
+          name: d.name,
+          dose: d.dose,
+          color: colors[d.name],
+          alpha: Math.min(bandAlpha * Math.pow(1.55, i - 1), 0.45)
+        };
+      });
     return map;
   }
 
@@ -174,13 +204,15 @@
 
   function renderLegend() {
     var el = $('#overlay-legend');
-    var map = drugColorMap();
-    var names = Object.keys(map);
-    if (!names.length && !state.events.length) { el.hidden = true; el.innerHTML = ''; return; }
+    var shades = drugShadeMap();
+    var keys = Object.keys(shades);
+    if (!keys.length && !state.events.length) { el.hidden = true; el.innerHTML = ''; return; }
     var html = '<span class="legend-title">On the charts</span>';
-    names.forEach(function (n) {
+    keys.forEach(function (k) {
+      var s = shades[k];
       html += '<span class="legend-chip"><span class="legend-swatch" style="background:' +
-        withAlpha(map[n], parseFloat(cssVar('--band-alpha')) + 0.1) + '"></span>' + esc(n) + '</span>';
+        withAlpha(s.color, s.alpha + 0.1) + '"></span>' + esc(s.name) +
+        (s.dose ? '<span class="legend-dose">' + esc(s.dose) + '</span>' : '') + '</span>';
     });
     if (state.events.length) {
       html += '<span class="legend-chip"><span class="legend-tick"></span>events</span>';
@@ -196,8 +228,7 @@
     host.innerHTML = '';
 
     var domain = timeDomain();
-    var map = drugColorMap();
-    var bandAlpha = parseFloat(cssVar('--band-alpha'));
+    var shades = drugShadeMap();
     var seriesColors = [cssVar('--series-1'), cssVar('--series-2')];
     var surface = cssVar('--surface');
     var inkMuted = cssVar('--ink-3');
@@ -228,7 +259,7 @@
           label: s.name,
           data: tumor.measurements
             .filter(function (m) { return isNum(m[s.key]); })
-            .map(function (m) { return { x: ts(m.date), y: m[s.key] }; }),
+            .map(function (m) { return { x: ts(m.date), y: m[s.key], note: m.note }; }),
           borderColor: seriesColors[i],
           backgroundColor: seriesColors[i],
           borderWidth: 2,
@@ -243,11 +274,12 @@
 
       var annotations = {};
       state.drugs.forEach(function (d, i) {
+        var s = shades[shadeKey(d)];
         annotations['drug' + i] = {
           type: 'box',
           xMin: ts(d.start),
           xMax: ts(d.end || todayStr()),
-          backgroundColor: withAlpha(map[d.name], bandAlpha),
+          backgroundColor: withAlpha(s.color, s.alpha),
           borderWidth: 0,
           drawTime: 'beforeDatasetsDraw'
         };
@@ -307,6 +339,15 @@
                 },
                 label: function (item) {
                   return ' ' + item.dataset.label + ': ' + item.parsed.y + ' ' + typeDef.unit;
+                },
+                // the measurement's note, shown once even when two series share the date
+                afterBody: function (items) {
+                  var notes = [];
+                  items.forEach(function (item) {
+                    var n = item.raw && item.raw.note;
+                    if (n && notes.indexOf(n) === -1) notes.push(n);
+                  });
+                  return notes;
                 }
               }
             },
@@ -384,6 +425,8 @@
           cells += '<td><input type="number" step="any" min="0" value="' + (isNum(m[s.key]) ? m[s.key] : '') +
             '" data-mid="' + m.id + '" data-field="' + s.key + '" aria-label="' + esc(s.name) + '"></td>';
         });
+        cells += '<td><input type="text" class="note-input" value="' + esc(m.note || '') +
+          '" data-mid="' + m.id + '" data-field="note" maxlength="80" aria-label="note"></td>';
         cells += '<td><button type="button" class="icon-btn" data-del-measurement="' + m.id + '" title="Delete this measurement" aria-label="Delete measurement">✕</button></td>';
         return '<tr>' + cells + '</tr>';
       }).join('');
@@ -392,6 +435,7 @@
       typeDef.series.forEach(function (s) {
         newCells += '<td><input type="number" step="any" min="0" placeholder="' + esc(s.name) + '" data-new="' + s.key + '" aria-label="new ' + esc(s.name) + '"></td>';
       });
+      newCells += '<td><input type="text" class="note-input" placeholder="note" data-new="note" maxlength="80" aria-label="new note"></td>';
       newCells += '<td></td>';
 
       card.innerHTML =
@@ -399,7 +443,7 @@
           '<input class="tumor-name-input" type="text" value="' + esc(tumor.name) + '" data-rename maxlength="80" aria-label="Tumor name">' +
           '<span class="type-badge">' + typeDef.label + ' · ' + typeDef.unit + '</span>' +
         '</div>' +
-        '<table class="m-table"><thead><tr><th>Scan date</th>' + valueHeads + '<th></th></tr></thead>' +
+        '<table class="m-table"><thead><tr><th>Scan date</th>' + valueHeads + '<th>Note</th><th></th></tr></thead>' +
         '<tbody>' + rows + '<tr class="new-row">' + newCells + '</tr></tbody></table>' +
         '<div class="card-footer"><button type="button" class="btn" data-del-tumor>Delete tumor</button></div>';
 
@@ -432,6 +476,10 @@
       if (!m) return;
       if (input.dataset.field === 'date') {
         if (isDateStr(input.value)) m.date = input.value;
+      } else if (input.dataset.field === 'note') {
+        m.note = input.value.trim() || null;
+        save(); renderCharts();
+        return;
       } else {
         var v = input.value === '' ? null : parseFloat(input.value);
         m[input.dataset.field] = isNum(v) && v >= 0 ? v : null;
@@ -447,9 +495,16 @@
     }
 
     if (input.dataset.new !== undefined) {
-      // commit right away only when the row is fully filled in; a partial row
-      // waits (see the focusout handler) so tabbing between its fields is safe
-      tryCommitNewRow(card, tumor, /*requireComplete*/ true);
+      // commit right away only when the row is fully filled in AND focus has
+      // already left the row — tabbing into the note field must not commit
+      // (and rerender) mid-entry. A row still holding focus waits for the
+      // focusout handler; the deferred check below sees where focus landed.
+      var newRow = input.closest('.new-row');
+      setTimeout(function () {
+        if (!newRow.isConnected) return;
+        if (newRow.contains(document.activeElement)) return;
+        tryCommitNewRow(card, tumor, /*requireComplete*/ true);
+      }, 0);
     }
   });
 
@@ -477,8 +532,9 @@
     var dateInput = row.querySelector('[data-new="date"]');
     if (!isDateStr(dateInput.value)) return;
     var typeDef = TYPES[tumor.type];
-    var rec = { id: uid(), date: dateInput.value };
-    var filled = 0;
+    var noteInput = row.querySelector('[data-new="note"]');
+    var rec = { id: uid(), date: dateInput.value, note: noteInput.value.trim() || null };
+    var filled = 0; // a note alone is not a measurement — only values count
     typeDef.series.forEach(function (s) {
       var el = row.querySelector('[data-new="' + s.key + '"]');
       var v = el.value === '' ? null : parseFloat(el.value);
@@ -535,26 +591,57 @@
 
   // ---------------- drugs section ----------------
 
+  var editingDrugId = null;
+
   function renderDrugs() {
     var host = $('#drug-list');
-    var map = drugColorMap();
+    var shades = drugShadeMap();
     if (!state.drugs.length) {
       host.innerHTML = '<p class="list-empty">No medications recorded yet.</p>';
       return;
     }
     var sorted = state.drugs.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
     host.innerHTML = '<div class="row-list">' + sorted.map(function (d) {
-      return '<div class="data-row">' +
-        '<span class="swatch" style="background:' + withAlpha(map[d.name], parseFloat(cssVar('--band-alpha')) + 0.1) + '"></span>' +
-        '<span class="row-main">' + esc(d.name) + (d.note ? '<span class="row-note">' + esc(d.note) + '</span>' : '') + '</span>' +
+      var s = shades[shadeKey(d)];
+      var swatch = '<span class="swatch" style="background:' + withAlpha(s.color, s.alpha + 0.1) + '"></span>';
+      if (d.id === editingDrugId) {
+        return '<div class="data-row data-row-edit" data-drug-id="' + d.id + '">' +
+          swatch +
+          '<input type="text" value="' + esc(d.name) + '" data-dfield="name" maxlength="60" aria-label="Medication name">' +
+          '<input type="text" value="' + esc(d.dose || '') + '" data-dfield="dose" placeholder="dose" maxlength="30" aria-label="Dose">' +
+          '<input type="date" value="' + d.start + '" data-dfield="start" aria-label="Start date">' +
+          '<input type="date" value="' + (d.end || '') + '" data-dfield="end" aria-label="End date, empty means ongoing">' +
+          '<input type="text" value="' + esc(d.note || '') + '" data-dfield="note" placeholder="note" maxlength="60" aria-label="Note">' +
+          '<button type="button" class="icon-btn done-btn" data-done-drug title="Done editing" aria-label="Done editing">✓</button>' +
+        '</div>';
+      }
+      return '<div class="data-row" data-drug-id="' + d.id + '">' +
+        swatch +
+        '<span class="row-main">' + esc(d.name) +
+          (d.dose ? '<span class="row-dose">' + esc(d.dose) + '</span>' : '') +
+          (d.note ? '<span class="row-note">' + esc(d.note) + '</span>' : '') + '</span>' +
         '<span class="row-dates">' + fmtDate(d.start) + ' — ' +
           (d.end ? fmtDate(d.end) : '<span class="ongoing">ongoing</span>') + '</span>' +
+        '<button type="button" class="icon-btn edit-btn" data-edit-drug="' + d.id + '" title="Edit" aria-label="Edit medication">✎</button>' +
         '<button type="button" class="icon-btn" data-del-drug="' + d.id + '" title="Delete" aria-label="Delete medication">✕</button>' +
       '</div>';
     }).join('') + '</div>';
   }
 
   $('#drug-list').addEventListener('click', function (ev) {
+    var editBtn = ev.target.closest('[data-edit-drug]');
+    if (editBtn) {
+      editingDrugId = editBtn.getAttribute('data-edit-drug');
+      renderDrugs();
+      var first = $('#drug-list .data-row-edit input');
+      if (first) first.focus();
+      return;
+    }
+    if (ev.target.closest('[data-done-drug]')) {
+      editingDrugId = null;
+      renderAll(); // re-sorts by start and refreshes swatches/legend
+      return;
+    }
     var btn = ev.target.closest('[data-del-drug]');
     if (!btn) return;
     var d = state.drugs.find(function (x) { return x.id === btn.getAttribute('data-del-drug'); });
@@ -566,20 +653,57 @@
     }
   });
 
+  // Save-as-you-go while a medication row is in edit mode. The list itself is
+  // not rerendered until ✓ so focus stays put; charts and legend refresh live.
+  $('#drug-list').addEventListener('change', function (ev) {
+    var input = ev.target;
+    var field = input.dataset.dfield;
+    var row = input.closest('[data-drug-id]');
+    if (!field || !row) return;
+    var d = state.drugs.find(function (x) { return x.id === row.dataset.drugId; });
+    if (!d) return;
+
+    if (field === 'name') {
+      var name = input.value.trim();
+      if (name) d.name = name; else input.value = d.name;
+    } else if (field === 'dose') {
+      d.dose = input.value.trim() || null;
+    } else if (field === 'note') {
+      d.note = input.value.trim() || null;
+    } else if (field === 'start') {
+      if (isDateStr(input.value) && (!d.end || input.value <= d.end)) d.start = input.value;
+      else {
+        if (isDateStr(input.value)) toast('The start date must come before the end date.');
+        input.value = d.start;
+      }
+    } else if (field === 'end') {
+      if (input.value === '') d.end = null;
+      else if (isDateStr(input.value) && input.value >= d.start) d.end = input.value;
+      else {
+        if (isDateStr(input.value)) toast('The end date is before the start date.');
+        input.value = d.end || '';
+      }
+    }
+    save(); renderLegend(); renderCharts();
+  });
+
   $('#add-drug').addEventListener('submit', function (ev) {
     ev.preventDefault();
     var name = $('#drug-name').value.trim();
     var start = $('#drug-start').value;
     var end = $('#drug-end').value || null;
+    var dose = $('#drug-dose').value.trim() || null;
     var note = $('#drug-note').value.trim() || null;
     if (!name || !isDateStr(start)) return;
     if (end && end < start) { toast('The end date is before the start date.'); return; }
-    state.drugs.push({ id: uid(), name: name, start: start, end: end, note: note });
+    state.drugs.push({ id: uid(), name: name, start: start, end: end, dose: dose, note: note });
     save(); renderAll();
     ev.target.reset();
   });
 
   // ---------------- events section ----------------
+
+  var editingEventId = null;
 
   function renderEvents() {
     var host = $('#event-list');
@@ -589,16 +713,38 @@
     }
     var sorted = state.events.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
     host.innerHTML = '<div class="row-list">' + sorted.map(function (e) {
-      return '<div class="data-row">' +
+      if (e.id === editingEventId) {
+        return '<div class="data-row data-row-edit" data-event-id="' + e.id + '">' +
+          '<span class="tick"></span>' +
+          '<input type="date" value="' + e.date + '" data-efield="date" aria-label="Event date">' +
+          '<input type="text" value="' + esc(e.label) + '" data-efield="label" maxlength="80" aria-label="Event label">' +
+          '<button type="button" class="icon-btn done-btn" data-done-event title="Done editing" aria-label="Done editing">✓</button>' +
+        '</div>';
+      }
+      return '<div class="data-row" data-event-id="' + e.id + '">' +
         '<span class="tick"></span>' +
         '<span class="row-main">' + esc(e.label) + '</span>' +
         '<span class="row-dates">' + fmtDate(e.date) + '</span>' +
+        '<button type="button" class="icon-btn edit-btn" data-edit-event="' + e.id + '" title="Edit" aria-label="Edit event">✎</button>' +
         '<button type="button" class="icon-btn" data-del-event="' + e.id + '" title="Delete" aria-label="Delete event">✕</button>' +
       '</div>';
     }).join('') + '</div>';
   }
 
   $('#event-list').addEventListener('click', function (ev) {
+    var editBtn = ev.target.closest('[data-edit-event]');
+    if (editBtn) {
+      editingEventId = editBtn.getAttribute('data-edit-event');
+      renderEvents();
+      var first = $('#event-list .data-row-edit input');
+      if (first) first.focus();
+      return;
+    }
+    if (ev.target.closest('[data-done-event]')) {
+      editingEventId = null;
+      renderAll();
+      return;
+    }
     var btn = ev.target.closest('[data-del-event]');
     if (!btn) return;
     if (armTwoStep(btn, '✕')) {
@@ -606,6 +752,22 @@
       save(); renderAll();
       toast('Event deleted');
     }
+  });
+
+  $('#event-list').addEventListener('change', function (ev) {
+    var input = ev.target;
+    var field = input.dataset.efield;
+    var row = input.closest('[data-event-id]');
+    if (!field || !row) return;
+    var e = state.events.find(function (x) { return x.id === row.dataset.eventId; });
+    if (!e) return;
+    if (field === 'date') {
+      if (isDateStr(input.value)) e.date = input.value; else input.value = e.date;
+    } else if (field === 'label') {
+      var label = input.value.trim();
+      if (label) e.label = label; else input.value = e.label;
+    }
+    save(); renderLegend(); renderCharts();
   });
 
   $('#add-event').addEventListener('submit', function (ev) {
