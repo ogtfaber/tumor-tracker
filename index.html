@@ -24,11 +24,11 @@
           <span class="patient-label">Diagnosis</span>
           <span id="diagnosis-value" class="diagnosis-value">NF2</span>
         </span>
-        <label class="patient-field">
-          <span class="patient-label">Patient</span>
-          <input id="patient-name" type="text" placeholder="add a name (optional)" maxlength="80"
-                 autocomplete="off" title="Shown on saved chart images">
-        </label>
+        <span class="patient-field">
+          <span class="patient-label">Patient ID</span>
+          <span id="patient-code" class="patient-code-value"
+                title="Anonymous code identifying this dataset — assigned once, never changes, and appears in backups and saved images"></span>
+        </span>
       </div>
     </div>
     <div class="masthead-actions">
@@ -176,6 +176,19 @@
 </footer>
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<dialog id="png-dialog">
+  <form id="png-form" method="dialog">
+    <h3>Save chart as image</h3>
+    <label class="dialog-label" for="png-patient-name">Patient name</label>
+    <input id="png-patient-name" type="text" maxlength="80" autocomplete="off" placeholder="e.g. Jane Doe">
+    <p class="dialog-note">Optional — the name is only used to generate the image. It is never stored in your data file.</p>
+    <div class="dialog-actions">
+      <button type="button" id="png-cancel" class="btn btn-ghost">Cancel</button>
+      <button type="submit" class="btn btn-primary">Download PNG</button>
+    </div>
+  </form>
+</dialog>
 
 <script src="vendor/chart.umd.min.js"></script>
 <script src="vendor/chartjs-adapter-date-fns.bundle.min.js"></script>

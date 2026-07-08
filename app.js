@@ -18,6 +18,17 @@
   // Must be assigned before `state = load()` runs below.
   var DEFAULT_DIAGNOSIS = 'NF2';
 
+  // Anonymous 6-character dataset ID. Generated once when real data first
+  // exists, then locked in — nothing in the UI can change it. The alphabet
+  // skips easily-confused characters (0/O, 1/I/L) so the code stays readable
+  // on printed charts.
+  var CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  var CODE_RE = /^[A-HJKMNP-Z2-9]{6}$/;
+
+  // The patient name never lives in `state`, so it can never end up in a
+  // JSON export. It is remembered only to prefill the Save-PNG dialog.
+  var PATIENT_NAME_KEY = 'tumorTracker.patientName';
+
   // ---------------- state ----------------
 
   var state = load();
@@ -26,7 +37,7 @@
   var armedTimer = null;
 
   function blankState() {
-    return { schemaVersion: SCHEMA_VERSION, diagnosis: DEFAULT_DIAGNOSIS, patient: '', tumors: [], drugs: [], events: [] };
+    return { schemaVersion: SCHEMA_VERSION, diagnosis: DEFAULT_DIAGNOSIS, code: null, tumors: [], drugs: [], events: [] };
   }
 
   function load() {
@@ -34,7 +45,20 @@
       var raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return blankState();
       var data = JSON.parse(raw);
-      return normalize(data) || blankState();
+      var out = normalize(data) || blankState();
+      var dirty = false;
+      // One-time migration: the patient name moves out of the data file into
+      // its own key, so JSON exports stay anonymous.
+      if (data && typeof data.patient === 'string' && data.patient.trim()) {
+        try { localStorage.setItem(PATIENT_NAME_KEY, data.patient.trim().slice(0, 80)); } catch (e2) {}
+        dirty = true;
+      }
+      if (hasData(out) && !out.code) { out.code = genCode(); dirty = true; }
+      if (dirty) {
+        // not save(): `state` is not assigned yet while load() runs
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(out)); } catch (e3) {}
+      }
+      return out;
     } catch (e) {
       console.warn('Could not read saved data:', e);
       return blankState();
@@ -42,6 +66,7 @@
   }
 
   function save() {
+    if (hasData(state) && !state.code) state.code = genCode();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
@@ -54,7 +79,7 @@
     if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
     var out = blankState();
     if (typeof data.diagnosis === 'string' && data.diagnosis.trim()) out.diagnosis = data.diagnosis.trim().slice(0, 40);
-    if (typeof data.patient === 'string') out.patient = data.patient.trim().slice(0, 80);
+    if (typeof data.code === 'string' && CODE_RE.test(data.code)) out.code = data.code;
     (Array.isArray(data.tumors) ? data.tumors : []).forEach(function (t) {
       if (!t || typeof t.name !== 'string' || !TYPES[t.type]) return;
       var tumor = { id: t.id || uid(), name: t.name, type: t.type, measurements: [] };
@@ -122,7 +147,6 @@
     return {
       schemaVersion: SCHEMA_VERSION,
       diagnosis: DEFAULT_DIAGNOSIS,
-      patient: '',
       tumors: [{
         id: 'sample-tumor',
         name: 'Left vestibular schwannoma (example)',
@@ -150,6 +174,15 @@
   // ---------------- small helpers ----------------
 
   function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
+  function hasData(s) { return !!(s.tumors.length || s.drugs.length || s.events.length); }
+
+  function genCode() {
+    var buf = new Uint32Array(6);
+    crypto.getRandomValues(buf);
+    var s = '';
+    for (var i = 0; i < 6; i++) s += CODE_ALPHABET[buf[i] % CODE_ALPHABET.length];
+    return s;
+  }
   function isNum(v) { return typeof v === 'number' && isFinite(v); }
   function isDateStr(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -273,8 +306,9 @@
   // ---------------- rendering ----------------
 
   function renderAll() {
-    var patientInput = $('#patient-name');
-    if (document.activeElement !== patientInput) patientInput.value = state.patient || '';
+    var codeEl = $('#patient-code');
+    codeEl.textContent = state.code || 'assigned on first entry';
+    codeEl.classList.toggle('placeholder', !state.code);
     $('#diagnosis-value').textContent = state.diagnosis || DEFAULT_DIAGNOSIS;
     refreshEventTumorOptions();
     renderLegend();
@@ -286,11 +320,11 @@
     $('#empty-example-note').hidden = viewState() === state;
     // Import is a fresh-start action, so it hides once anything is saved;
     // with nothing entered yet there is nothing worth downloading.
-    var hasData = state.tumors.length || state.drugs.length || state.events.length;
-    $('#btn-import').hidden = !!hasData;
-    $('#btn-export').disabled = !hasData;
-    $('#btn-export-2').disabled = !hasData;
-    $('#clear-section').hidden = !hasData;
+    var dataExists = hasData(state);
+    $('#btn-import').hidden = dataExists;
+    $('#btn-export').disabled = !dataExists;
+    $('#btn-export-2').disabled = !dataExists;
+    $('#clear-section').hidden = !dataExists;
   }
 
   function renderLegend() {
@@ -509,7 +543,7 @@
   // The chart canvas is transparent and has no title, so the export
   // composites it onto a surface-colored canvas with the tumor name drawn in.
 
-  function exportChartPng(card) {
+  function exportChartPng(card, patient) {
     var tumor = findTumor(card.dataset.tumorId);
     var canvas = card.querySelector('canvas');
     var chart = canvas && Chart.getChart(canvas);
@@ -517,8 +551,11 @@
     var typeDef = TYPES[tumor.type];
 
     var dpr = Math.max(2, window.devicePixelRatio || 1); // at least 2x for crisp exports
-    var patient = (state.patient || '').trim();
-    var pad = 20, titleH = patient ? 52 : 34; // extra line under the title when a patient name is set
+    patient = (patient || '').trim();
+    // Second title line: "Jane Doe · ID K7F3QX" — or just the ID when no name
+    // was given. Real data always has a code by the time a chart is exportable.
+    var idLine = (patient ? patient + ' · ' : '') + 'ID ' + (state.code || '');
+    var pad = 20, titleH = 52;
     var w = chart.width, h = chart.height;
     var bodyFont = cssVar('--font-body') || 'sans-serif';
 
@@ -562,11 +599,9 @@
     ctx.fillStyle = cssVar('--ink-3');
     ctx.font = '600 10px ' + (cssVar('--font-body') || 'sans-serif');
     ctx.fillText((typeDef.label + ' · ' + typeDef.unit).toUpperCase(), pad + nameWidth + 10, pad + 15);
-    if (patient) {
-      ctx.fillStyle = cssVar('--ink-2');
-      ctx.font = 'italic 500 12px ' + (cssVar('--font-body') || 'sans-serif');
-      ctx.fillText(patient, pad, pad + 35);
-    }
+    ctx.fillStyle = cssVar('--ink-2');
+    ctx.font = 'italic 500 12px ' + (cssVar('--font-body') || 'sans-serif');
+    ctx.fillText(idLine, pad, pad + 35);
 
     ctx.drawImage(canvas, pad, pad + titleH, w, h);
 
@@ -601,10 +636,32 @@
     }, 'image/png');
   }
 
+  // Save PNG asks for the patient name first. The name is remembered only
+  // under PATIENT_NAME_KEY — outside `state` — so it never reaches a JSON
+  // export; it exists purely to label the image.
+  var pngCard = null; // chart card awaiting the dialog
+
   $('#charts').addEventListener('click', function (ev) {
     var btn = ev.target.closest('[data-save-png]');
     if (!btn) return;
-    exportChartPng(btn.closest('.chart-card'));
+    pngCard = btn.closest('.chart-card');
+    var input = $('#png-patient-name');
+    try { input.value = localStorage.getItem(PATIENT_NAME_KEY) || ''; } catch (e) { input.value = ''; }
+    $('#png-dialog').showModal();
+  });
+
+  $('#png-cancel').addEventListener('click', function () { $('#png-dialog').close(); });
+  $('#png-dialog').addEventListener('close', function () { pngCard = null; });
+
+  // method="dialog" closes the dialog after this handler runs, so pngCard is
+  // still set here; a blank submit clears the remembered name.
+  $('#png-form').addEventListener('submit', function () {
+    var name = $('#png-patient-name').value.trim().slice(0, 80);
+    try {
+      if (name) localStorage.setItem(PATIENT_NAME_KEY, name);
+      else localStorage.removeItem(PATIENT_NAME_KEY);
+    } catch (e) {}
+    if (pngCard) exportChartPng(pngCard, name);
   });
 
   // ---------------- tumors section ----------------
@@ -1032,8 +1089,7 @@
       try { incoming = normalize(JSON.parse(reader.result)); }
       catch (e) { incoming = null; }
       if (!incoming) { toast('That file doesn’t look like a Tumor Tracker backup.'); return; }
-      var hasData = state.tumors.length || state.drugs.length || state.events.length;
-      if (hasData) {
+      if (hasData(state)) {
         var n = incoming.tumors.length;
         var ok = window.confirm(
           'Replace everything currently in this browser with the imported file?\n\n' +
@@ -1068,15 +1124,6 @@
     try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
     renderAll();
     toast('All data deleted from this browser.');
-  });
-
-  // ---------------- patient name ----------------
-  // Optional; shown on saved chart images so a printout identifies whose scans these are.
-
-  $('#patient-name').addEventListener('change', function (ev) {
-    state.patient = ev.target.value.trim().slice(0, 80);
-    ev.target.value = state.patient;
-    save();
   });
 
   // ---------------- theme changes ----------------
