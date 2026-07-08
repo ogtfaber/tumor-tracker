@@ -62,6 +62,7 @@
         <li><strong>Enter measurements</strong> from each scan, with the scan date.</li>
         <li><strong>Record medications</strong> and important events to overlay them on the charts.</li>
       </ol>
+      <p class="empty-cta"><button id="btn-start" class="btn btn-primary" type="button">Start</button></p>
       <p id="empty-example-note" class="example-note" hidden>The chart below is just
         an example — it disappears as soon as you add your own first tumor.</p>
     </div>
@@ -163,6 +164,8 @@
   </p>
   <p class="footer-fine">Data lives in this browser's local storage · <button id="btn-export-2" class="linklike" type="button">download a backup</button> · clearing your browser data will erase it.</p>
   <p class="footer-fine">Free and open source · <a class="linklike" href="https://github.com/ogtfaber/tumor-tracker">github.com/ogtfaber/tumor-tracker</a></p>
+  <p class="footer-clear"><button id="btn-clear" class="btn btn-danger" type="button" hidden
+      title="Deletes everything stored in this browser">Clear all data from this browser</button></p>
 </footer>
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

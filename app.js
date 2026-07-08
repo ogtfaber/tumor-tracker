@@ -290,6 +290,7 @@
     $('#btn-import').hidden = !!hasData;
     $('#btn-export').disabled = !hasData;
     $('#btn-export-2').disabled = !hasData;
+    $('#btn-clear').hidden = !hasData;
   }
 
   function renderLegend() {
@@ -1047,6 +1048,26 @@
       toast('Data imported.');
     };
     reader.readAsText(file);
+  });
+
+  // ---------------- onboarding ----------------
+
+  $('#btn-start').addEventListener('click', function () {
+    $('#add-tumor').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // focus without scrolling, or it would cut the smooth scroll short
+    $('#tumor-name').focus({ preventScroll: true });
+  });
+
+  // ---------------- clear all data ----------------
+
+  $('#btn-clear').addEventListener('click', function () {
+    if (!armTwoStep(this, 'Click again to delete everything')) return;
+    exitDrugEdit();
+    exitEventEdit();
+    state = blankState();
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    renderAll();
+    toast('All data deleted from this browser.');
   });
 
   // ---------------- patient name ----------------
