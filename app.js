@@ -284,6 +284,12 @@
     renderEvents();
     $('#empty-state').hidden = state.tumors.length > 0;
     $('#empty-example-note').hidden = viewState() === state;
+    // Import is a fresh-start action, so it hides once anything is saved;
+    // with nothing entered yet there is nothing worth downloading.
+    var hasData = state.tumors.length || state.drugs.length || state.events.length;
+    $('#btn-import').hidden = !!hasData;
+    $('#btn-export').disabled = !hasData;
+    $('#btn-export-2').disabled = !hasData;
   }
 
   function renderLegend() {

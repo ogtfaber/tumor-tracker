@@ -266,6 +266,11 @@ section { margin-top: 2.6rem; }
   cursor: pointer;
 }
 
+.btn:disabled, .linklike:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
 input[type="text"], input[type="date"], input[type="number"], select {
   font: 400 .9rem var(--font-body);
   color: var(--ink);
