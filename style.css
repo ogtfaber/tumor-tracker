@@ -224,6 +224,13 @@ section { margin-top: 2.6rem; }
   max-width: 60ch;
 }
 
+.field-hint {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: .78rem;
+  max-width: 60ch;
+}
+
 /* ---------------- buttons & inputs ---------------- */
 
 .btn {
@@ -275,7 +282,7 @@ section { margin-top: 2.6rem; }
   cursor: not-allowed;
 }
 
-input[type="text"], input[type="date"], input[type="number"], select {
+input[type="text"], input[type="date"], input[type="number"], select, textarea {
   font: 400 .9rem var(--font-body);
   color: var(--ink);
   background: var(--surface);
@@ -285,15 +292,17 @@ input[type="text"], input[type="date"], input[type="number"], select {
   width: 100%;
   transition: border-color .15s, box-shadow .15s;
 }
-input:focus, select:focus {
+input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
-input::placeholder { color: var(--ink-3); }
+input::placeholder, textarea::placeholder { color: var(--ink-3); }
+textarea { resize: vertical; }
 
 .field { display: flex; flex-direction: column; gap: .3rem; min-width: 9.5rem; }
 .field.grow { flex: 1 1 14rem; }
+.field.full { flex: 1 1 100%; }
 .field label {
   font-size: .72rem;
   font-weight: 600;

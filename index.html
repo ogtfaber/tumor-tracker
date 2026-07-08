@@ -119,9 +119,12 @@
         <label for="drug-dose">Dose <span class="optional">optional</span></label>
         <input id="drug-dose" name="dose" type="number" step="any" min="0" placeholder="e.g. 10">
       </div>
-      <div class="field">
-        <label for="drug-note">Note <span class="optional">optional</span></label>
-        <input id="drug-note" name="note" type="text" placeholder="e.g. reduced" maxlength="60">
+      <div class="field full">
+        <label for="drug-note">Notes <span class="optional">optional</span></label>
+        <textarea id="drug-note" name="note" rows="3" maxlength="500"
+          placeholder="Side effects, how you're tolerating it…"
+          aria-describedby="drug-note-hint"></textarea>
+        <p id="drug-note-hint" class="field-hint">Comment on your experience with this medication — side effects, how you're tolerating it, or anything else worth remembering.</p>
       </div>
       <button class="btn btn-primary" type="submit">Add</button>
       <button id="drug-cancel" class="btn" type="button" hidden>Cancel</button>
