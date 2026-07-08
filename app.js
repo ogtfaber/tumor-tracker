@@ -13,6 +13,11 @@
 
   var DRUG_SLOTS = 6;
 
+  // The tool is scoped to NF2 for now; the diagnosis is stored in the data
+  // file so backups stay meaningful if other diseases are added later.
+  // Must be assigned before `state = load()` runs below.
+  var DEFAULT_DIAGNOSIS = 'NF2';
+
   // ---------------- state ----------------
 
   var state = load();
@@ -21,7 +26,7 @@
   var armedTimer = null;
 
   function blankState() {
-    return { schemaVersion: SCHEMA_VERSION, patient: '', tumors: [], drugs: [], events: [] };
+    return { schemaVersion: SCHEMA_VERSION, diagnosis: DEFAULT_DIAGNOSIS, patient: '', tumors: [], drugs: [], events: [] };
   }
 
   function load() {
@@ -48,6 +53,7 @@
   function normalize(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
     var out = blankState();
+    if (typeof data.diagnosis === 'string' && data.diagnosis.trim()) out.diagnosis = data.diagnosis.trim().slice(0, 40);
     if (typeof data.patient === 'string') out.patient = data.patient.trim().slice(0, 80);
     (Array.isArray(data.tumors) ? data.tumors : []).forEach(function (t) {
       if (!t || typeof t.name !== 'string' || !TYPES[t.type]) return;
@@ -115,6 +121,7 @@
     }
     return {
       schemaVersion: SCHEMA_VERSION,
+      diagnosis: DEFAULT_DIAGNOSIS,
       patient: '',
       tumors: [{
         id: 'sample-tumor',
@@ -268,6 +275,7 @@
   function renderAll() {
     var patientInput = $('#patient-name');
     if (document.activeElement !== patientInput) patientInput.value = state.patient || '';
+    $('#diagnosis-value').textContent = state.diagnosis || DEFAULT_DIAGNOSIS;
     refreshEventTumorOptions();
     renderLegend();
     renderCharts();

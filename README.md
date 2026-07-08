@@ -1,7 +1,9 @@
-# Tumor Tracker
+# NF2 Tumor Tracker
 
-A private, static web page for patients to plot tumor measurements over time,
-with medication periods and life events overlaid on every chart.
+A private, static web page for NF2 patients to plot tumor measurements over
+time, with medication periods and life events overlaid on every chart. The
+diagnosis is stored in the data file, so support for other diseases can be
+added later.
 
 ## Privacy model
 
@@ -46,6 +48,8 @@ One JSON document (`schemaVersion: 1`):
 ```json
 {
   "schemaVersion": 1,
+  "diagnosis": "NF2",
+  "patient": "…",
   "tumors": [
     { "id": "…", "name": "Left vestibular schwannoma", "type": "vol",
       "measurements": [ { "id": "…", "date": "2024-03-18", "v": 2.9 } ] }

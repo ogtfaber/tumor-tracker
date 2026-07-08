@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
-<title>Tumor Tracker — your scans, on one timeline</title>
-<meta name="description" content="A private, in-browser journal for tumor measurements. Plot your scans over time with your medications overlaid. Nothing ever leaves your device.">
+<title>NF2 Tumor Tracker — your scans, on one timeline</title>
+<meta name="description" content="A private, in-browser journal for NF2 tumor measurements. Plot your scans over time with your medications overlaid. Nothing ever leaves your device.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎗️</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,13 +17,19 @@
 <header class="masthead">
   <div class="masthead-inner">
     <div class="masthead-title">
-      <h1>Tumor Tracker</h1>
+      <h1>NF2 Tumor Tracker</h1>
       <p class="tagline">Your scans, on one timeline.</p>
-      <label class="patient-field">
-        <span class="patient-label">Patient</span>
-        <input id="patient-name" type="text" placeholder="add a name (optional)" maxlength="80"
-               autocomplete="off" title="Shown on saved chart images">
-      </label>
+      <div class="patient-row">
+        <span class="diagnosis-field">
+          <span class="patient-label">Diagnosis</span>
+          <span id="diagnosis-value" class="diagnosis-value">NF2</span>
+        </span>
+        <label class="patient-field">
+          <span class="patient-label">Patient</span>
+          <input id="patient-name" type="text" placeholder="add a name (optional)" maxlength="80"
+                 autocomplete="off" title="Shown on saved chart images">
+        </label>
+      </div>
     </div>
     <div class="masthead-actions">
       <button id="btn-import" class="btn btn-ghost" type="button">Import…</button>
@@ -43,12 +49,7 @@
 
   <!-- ============ CHARTS ============ -->
   <section id="charts-section" aria-label="Charts">
-    <div id="overlay-legend" class="overlay-legend" hidden></div>
-    <div id="charts"></div>
-
     <div id="empty-state" class="empty-state" hidden>
-      <p id="empty-example-note" class="example-note" hidden>The chart above is just
-        an example — it disappears as soon as you add your own first tumor.</p>
       <h2>Start your timeline</h2>
       <p>
         Add a tumor below, then enter the measurements from your scan reports.
@@ -61,7 +62,12 @@
         <li><strong>Enter measurements</strong> from each scan, with the scan date.</li>
         <li><strong>Record medications</strong> and important events to overlay them on the charts.</li>
       </ol>
+      <p id="empty-example-note" class="example-note" hidden>The chart below is just
+        an example — it disappears as soon as you add your own first tumor.</p>
     </div>
+
+    <div id="overlay-legend" class="overlay-legend" hidden></div>
+    <div id="charts"></div>
   </section>
 
   <!-- ============ TUMORS ============ -->
