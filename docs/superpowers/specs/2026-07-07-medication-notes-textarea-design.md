@@ -28,6 +28,10 @@ The `#drug-note` `<input type="text">` in the `#add-drug` form becomes a
 - `id="drug-note"`, `name="note"`, `rows="3"`, `maxlength="500"`.
 - Label changes from **Note** to **Notes** (still marked optional).
 - Placeholder: `Side effects, how you're tolerating it…`.
+- A visible hint below the textarea (new `.field-hint` paragraph, styled after the
+  existing `.section-hint` but scoped to the field): *"Comment on your experience
+  with this medication — side effects, how you're tolerating it, or anything else
+  worth remembering."* Linked to the textarea with `aria-describedby`.
 
 Edit mode is unchanged in behavior: clicking ✎ fills the textarea from `d.note`
 (`$('#drug-note').value = d.note || ''`), Save writes back the trimmed value,
@@ -46,6 +50,8 @@ muted text block below the medication's name/dose/dates line:
 
 - Style the `#add-drug textarea` to match the existing text inputs (font, padding,
   border, background); `resize: vertical` only.
+- New `.field-hint` class: small muted type below the field, visually consistent
+  with `.section-hint`.
 - New class for the note block in the list (e.g. `.row-note-block`): small muted
   type, `white-space: pre-wrap`, sits under the row's main line.
 
