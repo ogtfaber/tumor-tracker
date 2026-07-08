@@ -290,7 +290,7 @@
     $('#btn-import').hidden = !!hasData;
     $('#btn-export').disabled = !hasData;
     $('#btn-export-2').disabled = !hasData;
-    $('#btn-clear').hidden = !hasData;
+    $('#clear-section').hidden = !hasData;
   }
 
   function renderLegend() {
@@ -999,7 +999,7 @@
     if (armedLabel && armedLabel !== '✕') btn.textContent = armedLabel;
     btn.classList.add('btn-danger-armed', 'armed');
     btn.title = 'Click again to confirm';
-    armedTimer = setTimeout(disarm, 3000);
+    armedTimer = setTimeout(disarm, 5000);
     return false;
   }
 

@@ -155,6 +155,15 @@
     </form>
   </section>
 
+  <!-- ============ CLEAR DATA ============ -->
+  <section class="data-section" id="clear-section" aria-labelledby="clear-heading" hidden>
+    <div class="section-head">
+      <h2 id="clear-heading">Clear data</h2>
+      <p class="section-hint">Deletes everything stored in this browser — download a backup first if you might want it back.</p>
+    </div>
+    <button id="btn-clear" class="btn btn-danger" type="button">Clear all data from this browser</button>
+  </section>
+
 </main>
 
 <footer class="site-footer">
@@ -164,8 +173,6 @@
   </p>
   <p class="footer-fine">Data lives in this browser's local storage · <button id="btn-export-2" class="linklike" type="button">download a backup</button> · clearing your browser data will erase it.</p>
   <p class="footer-fine">Free and open source · <a class="linklike" href="https://github.com/ogtfaber/tumor-tracker">github.com/ogtfaber/tumor-tracker</a></p>
-  <p class="footer-clear"><button id="btn-clear" class="btn btn-danger" type="button" hidden
-      title="Deletes everything stored in this browser">Clear all data from this browser</button></p>
 </footer>
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

@@ -196,7 +196,7 @@ main, header, footer { position: relative; z-index: 1; }
 main {
   max-width: 980px;
   margin: 0 auto;
-  padding: 1.5rem 1.5rem 4rem;
+  padding: 1.5rem 1.5rem 2.2rem;
 }
 
 section { margin-top: 2.6rem; }
@@ -257,12 +257,13 @@ section { margin-top: 2.6rem; }
   border-color: var(--danger);
 }
 .btn-danger:hover { background: color-mix(in srgb, var(--danger) 8%, transparent); }
-.footer-clear { margin-top: 1.4rem; }
 
+/* armed = one click away from deleting: solid red fill so the
+   "click again to confirm" state is unmissable */
 .btn-danger-armed {
   border-color: var(--danger) !important;
-  color: var(--danger) !important;
-  background: transparent !important;
+  color: #fff !important;
+  background: var(--danger) !important;
 }
 
 .linklike {
