@@ -17,7 +17,7 @@ for next time, and never enters the JSON data file.
   (no `0/O`, `1/I/L`). Example: `K7F3QX`.
 - Generated with `crypto.getRandomValues`.
 - **Locked in:** once set it is never regenerated and no UI can edit it.
-  `normalize()` preserves any value matching `/^[A-HJ-NP-Z2-9]{6}$/` (the alphabet
+  `normalize()` preserves any value matching `/^[A-HJKMNP-Z2-9]{6}$/` (the alphabet
   above) and discards anything else.
 
 ### When it is generated
