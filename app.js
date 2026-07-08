@@ -867,12 +867,12 @@
       return '<div class="data-row' + (d.id === editingDrugId ? ' editing' : '') + '">' +
         '<span class="swatch" style="background:' + withAlpha(s.color, s.alpha + 0.1) + '"></span>' +
         '<span class="row-main">' + esc(d.name) +
-          (d.dose ? '<span class="row-dose">' + d.dose + '</span>' : '') +
-          (d.note ? '<span class="row-note">' + esc(d.note) + '</span>' : '') + '</span>' +
+          (d.dose ? '<span class="row-dose">' + d.dose + '</span>' : '') + '</span>' +
         '<span class="row-dates">' + fmtDate(d.start) + ' — ' +
           (d.end ? fmtDate(d.end) : '<span class="ongoing">ongoing</span>') + '</span>' +
         '<button type="button" class="icon-btn edit-btn" data-edit-drug="' + d.id + '" title="Edit" aria-label="Edit medication">✎</button>' +
         '<button type="button" class="icon-btn" data-del-drug="' + d.id + '" title="Delete" aria-label="Delete medication">✕</button>' +
+        (d.note ? '<div class="row-note-block">' + esc(d.note) + '</div>' : '') +
       '</div>';
     }).join('') + '</div>';
   }

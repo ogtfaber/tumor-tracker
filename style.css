@@ -570,6 +570,13 @@ textarea { resize: vertical; }
 }
 .data-row .row-main { flex: 1 1 12rem; font-weight: 500; }
 .data-row .row-note { color: var(--ink-3); font-weight: 400; font-style: italic; margin-left: .4rem; }
+.data-row .row-note-block {
+  flex: 1 1 100%;
+  margin: -.15rem 0 .1rem calc(15px + .9rem); /* aligns under row-main, past the swatch */
+  color: var(--ink-3);
+  font-size: .84rem;
+  white-space: pre-wrap;
+}
 .data-row .row-dates {
   color: var(--ink-2);
   font-size: .84rem;
