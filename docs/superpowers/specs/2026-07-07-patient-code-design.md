@@ -41,9 +41,10 @@ the placeholder in demo state).
 
 - The export contains `code` and never any name. `patient` is removed from the
   schema; `normalize()` no longer reads it into state.
-- **One-time migration:** if stored state contains a non-empty `patient` value, it
-  is moved to the saved PNG-dialog name (below) and deleted from state, so the
-  current name survives — outside the data file.
+- **One-time migration:** if *stored* state contains a non-empty `patient` value,
+  it is moved to the saved PNG-dialog name (below) and deleted from state, so the
+  current name survives — outside the data file. A `patient` field in an
+  *imported* file is silently dropped (it never overwrites the local prefill).
 
 ## Save PNG dialog
 
@@ -76,6 +77,6 @@ Manual verification via the running app:
 4. Save PNG: dialog appears with note; blank name → PNG shows `ID …` only;
    entered name → shown on PNG and prefilled on next open; name absent from a
    subsequent JSON export.
-5. Import an old backup containing `patient`: name is dropped from state (moved
-   to dialog prefill), code generated.
+5. Import an old backup containing `patient`: name is silently dropped, code
+   generated.
 6. Import a backup containing a code: that code is kept.
