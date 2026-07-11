@@ -106,6 +106,7 @@ async function handlePublish(request, env) {
   if (text.length > MAX_BODY) return json({ error: 'Dataset too large to publish (100 KB limit).' }, 413);
   let body;
   try { body = JSON.parse(text); } catch { return json({ error: 'Invalid JSON.' }, 400); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ error: 'Invalid JSON.' }, 400);
 
   const code = typeof body.code === 'string' ? body.code : '';
   if (!CODE_RE.test(code)) return json({ error: 'Invalid patient code.' }, 400);
