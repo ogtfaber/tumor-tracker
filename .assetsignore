@@ -1,0 +1,6 @@
+.git
+node_modules
+src
+docs
+.dev.vars
+wrangler.jsonc
