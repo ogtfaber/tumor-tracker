@@ -147,6 +147,47 @@ async function handleGetOne(env, code) {
   return json({ data: entry.value.data, summary: entry.metadata || null });
 }
 
+// Soft per-IP limit on writes. KV is eventually consistent so this is
+// best-effort, which is fine — it only needs to stop casual flooding.
+async function allowWrite(env, ip) {
+  const key = `rl:${ip}:${Math.floor(Date.now() / 60_000)}`;
+  const n = parseInt((await env.PUBLISHED.get(key)) || '0', 10);
+  if (n >= 10) return false;
+  await env.PUBLISHED.put(key, String(n + 1), { expirationTtl: 120 });
+  return true;
+}
+
+async function handleList(env) {
+  // Summaries live in metadata, so one list() call is the whole gallery.
+  // KV returns at most 1000 keys per page; beyond that this needs cursor
+  // paging — log-worthy, not plan-worthy, at this scale.
+  const list = await env.PUBLISHED.list({ prefix: 'pub:' });
+  const items = list.keys
+    .map((k) => k.metadata)
+    .filter(Boolean)
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  return json({ items });
+}
+
+async function handleDelete(request, env, code) {
+  const key = 'pub:' + code;
+  const existing = await env.PUBLISHED.get(key, 'json');
+  if (!existing) return json({ ok: true }); // idempotent
+
+  const adminGiven = request.headers.get('X-Admin-Key');
+  const isAdmin = !!(adminGiven && env.ADMIN_KEY && adminGiven === env.ADMIN_KEY);
+  if (!isAdmin) {
+    let body = {};
+    try { body = await request.json(); } catch {}
+    const given = typeof body.token === 'string' ? body.token : '';
+    if (!TOKEN_RE.test(given) || (await sha256hex(given)) !== existing.tokenHash) {
+      return json({ error: 'The update token does not match.' }, 403);
+    }
+  }
+  await env.PUBLISHED.delete(key);
+  return json({ ok: true });
+}
+
 // Serve index.html for a viewer route, stamped noindex. The app reads
 // location.pathname to decide what to render.
 async function serveApp(env, url) {
@@ -164,12 +205,20 @@ export default {
     const viewMatch = path.match(/^\/p\/([A-HJKMNP-Z2-9]{6})$/);
     if (viewMatch || path === '/explore') return serveApp(env, url);
 
-    if (path === '/api/publish' && request.method === 'POST') return handlePublish(request, env);
-
-    const oneMatch = path.match(/^\/api\/published\/([A-HJKMNP-Z2-9]{6})$/);
-    if (oneMatch && request.method === 'GET') return handleGetOne(env, oneMatch[1]);
-
     if (path.startsWith('/api/')) {
+      const oneMatch = path.match(/^\/api\/published\/([A-HJKMNP-Z2-9]{6})$/);
+      const isWrite = (path === '/api/publish' && request.method === 'POST') ||
+                      (oneMatch && request.method === 'DELETE');
+      if (isWrite) {
+        const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+        if (!(await allowWrite(env, ip))) {
+          return json({ error: 'Too many requests — try again in a minute.' }, 429);
+        }
+      }
+      if (path === '/api/publish' && request.method === 'POST') return handlePublish(request, env);
+      if (path === '/api/published' && request.method === 'GET') return handleList(env);
+      if (oneMatch && request.method === 'GET') return handleGetOne(env, oneMatch[1]);
+      if (oneMatch && request.method === 'DELETE') return handleDelete(request, env, oneMatch[1]);
       return json({ error: 'Not found.' }, 404);
     }
 
