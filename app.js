@@ -1188,6 +1188,7 @@
   }
 
   function renderPublish() {
+    if (VIEW) { $('#publish-section').hidden = true; return; }
     var dataExists = hasData(state);
     var token = getPublishToken();
     $('#publish-section').hidden = !dataExists;
