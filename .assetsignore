@@ -4,3 +4,4 @@ src
 docs
 .dev.vars
 wrangler.jsonc
+.superpowers

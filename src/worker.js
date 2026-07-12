@@ -175,7 +175,8 @@ async function handleDelete(request, env, code) {
   if (!existing) return json({ ok: true }); // idempotent
 
   const adminGiven = request.headers.get('X-Admin-Key');
-  const isAdmin = !!(adminGiven && env.ADMIN_KEY && adminGiven === env.ADMIN_KEY);
+  const isAdmin = !!(adminGiven && env.ADMIN_KEY &&
+    (await sha256hex(adminGiven)) === (await sha256hex(env.ADMIN_KEY)));
   if (!isAdmin) {
     let body = {};
     try { body = await request.json(); } catch {}

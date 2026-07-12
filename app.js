@@ -1170,6 +1170,8 @@
   // Everything here is explicit user action; the app never publishes or
   // updates the public copy on its own.
 
+  var publishBusy = false;
+
   function apiFetch(method, path, body) {
     return fetch(path, {
       method: method,
@@ -1263,22 +1265,36 @@
   $('#publish-cancel').addEventListener('click', function () { $('#publish-dialog').close(); });
 
   $('#publish-form').addEventListener('submit', function () {
+    if (publishBusy) return;
+    publishBusy = true;
+    var btn = $('#publish-confirm');
+    btn.disabled = true;
     pushPublish(null).then(function (res) {
       if (res.token) setPublished(res.token, res.summary.updatedAt);
       renderPublish();
       toast('Published — thank you for sharing.');
+      publishBusy = false;
+      btn.disabled = false;
     }).catch(function (err) {
       toast('Could not publish: ' + err.message);
+      publishBusy = false;
+      btn.disabled = false;
     });
   });
 
   $('#btn-publish-update').addEventListener('click', function () {
+    if (publishBusy) return;
     var token = getPublishToken();
     if (!token) return;
+    publishBusy = true;
+    var btn = this;
+    btn.disabled = true;
     pushPublish(token).then(function (res) {
       setPublished(token, res.summary.updatedAt);
       renderPublish();
       toast('Published copy updated.');
+      publishBusy = false;
+      btn.disabled = false;
     }).catch(function (err) {
       // A 403 here means the stored token no longer matches the server's —
       // e.g. a backup restored without its token. Per spec, explain and point
@@ -1287,19 +1303,29 @@
         ? ' This copy can no longer update the public page. To remove the public copy, contact the site owner (see the footer).'
         : '';
       toast('Could not update: ' + err.message + hint);
+      publishBusy = false;
+      btn.disabled = false;
     });
   });
 
   $('#btn-unpublish').addEventListener('click', function () {
     if (!armTwoStep(this, 'Click again to remove from the public gallery')) return;
+    if (publishBusy) return;
     var token = getPublishToken();
     if (!token) return;
+    publishBusy = true;
+    var btn = this;
+    btn.disabled = true;
     apiFetch('DELETE', '/api/published/' + state.code, { token: token }).then(function () {
       clearPublished();
       renderPublish();
       toast('Removed from the public gallery.');
+      publishBusy = false;
+      btn.disabled = false;
     }).catch(function (err) {
       toast('Could not unpublish: ' + err.message);
+      publishBusy = false;
+      btn.disabled = false;
     });
   });
 
