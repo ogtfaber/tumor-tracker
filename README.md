@@ -7,8 +7,12 @@ added later.
 
 ## Privacy model
 
-- All data lives in the browser's `localStorage` on the user's device.
-  Nothing is ever sent to a server; there is no server.
+- All data lives in the browser's `localStorage` on the user's device. Nothing
+  is sent to a server unless the user explicitly publishes: **Publish
+  anonymously** uploads a copy of the dataset (identified only by its patient
+  code, never a name) to the public gallery at `/explore`. Updates are pushed
+  manually and authorized by a secret token issued at first publish; the
+  server stores only a hash of it. **Unpublish** deletes the public copy.
 - **Download my data** exports everything as a readable `.json` file.
 - **Import…** restores from such a file (backup, moving devices, or after the
   browser cleared its storage).
@@ -40,6 +44,12 @@ Web fonts load from Google Fonts when online and fall back to system fonts
 offline. Charts are rendered with a locally vendored Chart.js
 (`vendor/chart.umd.min.js`), the annotation plugin, and the date-fns adapter —
 no CDN needed at runtime.
+
+The publish API and the public pages (`/explore`, `/p/<CODE>`) need the
+Cloudflare Worker: run `npx wrangler dev` locally. Opening `index.html`
+directly still works for purely local tracking. Deploying requires a real KV
+namespace id in `wrangler.jsonc` (`npx wrangler kv namespace create
+PUBLISHED`) and the admin secret (`npx wrangler secret put ADMIN_KEY`).
 
 ## Data format
 
