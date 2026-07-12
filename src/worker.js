@@ -190,11 +190,18 @@ async function handleDelete(request, env, code) {
 }
 
 // Serve index.html for a viewer route, stamped noindex. The app reads
-// location.pathname to decide what to render.
+// location.pathname to decide what to render. Viewer routes live one path
+// segment deep (/p/CODE), so a <base> tag is injected here to pin relative
+// asset URLs (style.css, app.js, vendor/*) to the site root — the tag can't
+// live in index.html itself, or opening the file straight from disk (the
+// documented local-only path) would resolve assets against file:///.
 async function serveApp(env, url) {
   const res = await env.ASSETS.fetch(new Request(new URL('/', url.origin)));
-  const out = new Response(res.body, res);
+  const html = (await res.text()).replace('<head>', '<head>\n<base href="/">');
+  const out = new Response(html, res);
   out.headers.set('X-Robots-Tag', 'noindex');
+  out.headers.delete('Content-Length');
+  out.headers.delete('ETag');
   return out;
 }
 

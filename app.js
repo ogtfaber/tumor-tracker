@@ -1290,7 +1290,10 @@
     var btn = this;
     btn.disabled = true;
     pushPublish(token).then(function (res) {
-      setPublished(token, res.summary.updatedAt);
+      // res.token only arrives when the server treated this as a first
+      // publish (our entry was deleted elsewhere) — store the fresh token,
+      // or the republished copy could never be updated or removed again.
+      setPublished(res.token || token, res.summary.updatedAt);
       renderPublish();
       toast('Published copy updated.');
       publishBusy = false;
@@ -1339,6 +1342,15 @@
 
   // ---------------- clear all data ----------------
 
+  function wipeLocalData() {
+    clearPublished();
+    exitDrugEdit();
+    exitEventEdit();
+    state = blankState();
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    renderAll();
+  }
+
   $('#btn-clear').addEventListener('click', function () {
     if (!armTwoStep(this, 'Click again to delete everything')) return;
     var pubToken = getPublishToken();
@@ -1349,17 +1361,20 @@
         'OK = also remove it from the public gallery\nCancel = leave it published'
       );
       if (alsoUnpublish) {
+        // Unpublish must succeed before anything is deleted locally: clearing
+        // first would destroy the only token that can remove the public copy.
         apiFetch('DELETE', '/api/published/' + state.code, { token: pubToken })
-          .then(function () { toast('Removed from the public gallery.'); })
-          .catch(function () { toast('Could not reach the server to unpublish.'); });
+          .then(function () {
+            wipeLocalData();
+            toast('Removed from the public gallery and deleted from this browser.');
+          })
+          .catch(function () {
+            toast('Could not remove the public copy — nothing was deleted. Please try again.');
+          });
+        return;
       }
     }
-    clearPublished();
-    exitDrugEdit();
-    exitEventEdit();
-    state = blankState();
-    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
-    renderAll();
+    wipeLocalData();
     toast('All data deleted from this browser.');
   });
 

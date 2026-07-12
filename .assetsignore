@@ -2,6 +2,9 @@
 node_modules
 src
 docs
-.dev.vars
+.dev.vars*
+.env*
+.wrangler
+.playwright-mcp
 wrangler.jsonc
 .superpowers
