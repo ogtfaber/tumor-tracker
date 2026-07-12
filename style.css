@@ -716,3 +716,120 @@ main > section:nth-of-type(4) { animation-delay: .24s; }
   justify-content: flex-end;
   gap: .5rem;
 }
+
+/* ---------------- Publish section & dialog ---------------- */
+
+.publish-status {
+  font-size: .85rem;
+  color: var(--ink-2);
+  margin: 0 0 .8rem;
+}
+.publish-actions {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  flex-wrap: wrap;
+}
+#publish-dialog {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 1.4rem 1.6rem;
+  width: min(34rem, 92vw);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
+}
+#publish-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#publish-dialog h3 {
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+.publish-preview {
+  max-height: 40vh;
+  overflow-y: auto;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: .8rem 1rem;
+  margin: .8rem 0;
+  font-size: .85rem;
+  line-height: 1.5;
+}
+.publish-preview h4 {
+  margin: .8rem 0 .2rem;
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.publish-preview h4:first-child { margin-top: 0; }
+.publish-preview ul { margin: 0; padding-left: 1.1rem; }
+.publish-preview .preview-note { color: var(--ink-2); font-style: italic; }
+.publish-consent {
+  display: flex;
+  gap: .5rem;
+  align-items: flex-start;
+  font-size: .85rem;
+  margin: 0 0 1.1rem;
+}
+
+/* ---------------- Public viewer mode ---------------- */
+
+/* Read-only: every editing/data section, the import/export buttons, and the
+   local-storage privacy note disappear. Charts and Save PNG remain. */
+body.viewer .data-section,
+body.viewer .masthead-actions,
+body.viewer .privacy-note,
+body.viewer #empty-state,
+body.viewer #footer-backup-line { display: none; }
+
+.viewer-note {
+  font-size: .85rem;
+  color: var(--ink-2);
+  margin: .4rem 0 0;
+}
+.viewer-note a { color: inherit; }
+
+/* ---------------- Explore gallery ---------------- */
+
+body.viewer-explore #charts-section,
+body.viewer-explore #overlay-legend { display: none; }
+
+.explore-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+.explore-card {
+  display: block;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 1rem 1.2rem;
+  text-decoration: none;
+  color: var(--ink);
+  background: var(--surface);
+}
+.explore-card:hover { border-color: var(--ink-3); }
+.explore-card .explore-code {
+  font: 600 1rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .12em;
+}
+.explore-card .explore-diagnosis {
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-left: .5rem;
+}
+.explore-card p {
+  margin: .5rem 0 0;
+  font-size: .82rem;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+.explore-empty {
+  color: var(--ink-2);
+  font-size: .9rem;
+}

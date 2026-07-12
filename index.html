@@ -19,6 +19,7 @@
     <div class="masthead-title">
       <h1>NF2 Tumor Tracker</h1>
       <p class="tagline">Your scans, on one timeline.</p>
+      <p id="viewer-note" class="viewer-note" hidden></p>
       <div class="patient-row">
         <span class="diagnosis-field">
           <span class="patient-label">Diagnosis</span>
@@ -39,13 +40,24 @@
   </div>
   <p class="privacy-note">
     <svg class="lock" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 7V5a4 4 0 1 1 8 0v2h.5A1.5 1.5 0 0 1 14 8.5v5A1.5 1.5 0 0 1 12.5 15h-9A1.5 1.5 0 0 1 2 13.5v-5A1.5 1.5 0 0 1 3.5 7H4Zm1.5 0h5V5a2.5 2.5 0 0 0-5 0v2Z" fill="currentColor"/></svg>
-    <span>Everything you enter is stored only in this browser, on this device. Nothing is sent anywhere.
+    <span>Everything you enter is stored only in this browser, on this device. Nothing is sent
+    anywhere unless you explicitly choose “Publish anonymously”.
     Download a copy now and then as a backup — and <strong>bookmark this page</strong>
     (<kbd>⌘D</kbd> / <kbd>Ctrl+D</kbd>) so you can always find your way back to your data.</span>
   </p>
 </header>
 
 <main>
+
+  <!-- ============ EXPLORE (public gallery) ============ -->
+  <section id="explore-section" aria-labelledby="explore-heading" hidden>
+    <div class="section-head">
+      <h2 id="explore-heading">Published datasets</h2>
+      <p class="section-hint">Real measurement histories, shared anonymously by other patients.
+        Patient-reported data from different scanners and readers — not medical advice.</p>
+    </div>
+    <div id="explore-list" class="explore-list"></div>
+  </section>
 
   <!-- ============ CHARTS ============ -->
   <section id="charts-section" aria-label="Charts">
@@ -158,6 +170,24 @@
     </form>
   </section>
 
+  <!-- ============ PUBLISH ============ -->
+  <section class="data-section" id="publish-section" aria-labelledby="publish-heading" hidden>
+    <div class="section-head">
+      <h2 id="publish-heading">Share anonymously</h2>
+      <p class="section-hint">Put a copy of this dataset — identified only by its Patient ID —
+        on the <a href="/explore">public gallery</a> so other patients can see a real course
+        over time. Nothing syncs automatically: you choose when to push an update.</p>
+    </div>
+    <p id="publish-status" class="publish-status" hidden></p>
+    <div class="publish-actions">
+      <button id="btn-publish" class="btn btn-primary" type="button">Publish anonymously…</button>
+      <button id="btn-publish-update" class="btn btn-primary" type="button" hidden
+        title="Pushes the data as it is right now to the public page — check any new notes or labels for identifying details first.">Update published data</button>
+      <a id="publish-link" class="linklike" target="_blank" rel="noopener" hidden>View public page</a>
+      <button id="btn-unpublish" class="btn btn-danger" type="button" hidden>Unpublish</button>
+    </div>
+  </section>
+
   <!-- ============ CLEAR DATA ============ -->
   <section class="data-section" id="clear-section" aria-labelledby="clear-heading" hidden>
     <div class="section-head">
@@ -174,7 +204,7 @@
     This is a personal record-keeping tool, not medical advice. Measurements vary between
     scanners, facilities, and readers — always discuss trends with your care team.
   </p>
-  <p class="footer-fine">Data lives in this browser's local storage · <button id="btn-export-2" class="linklike" type="button">download a backup</button> · clearing your browser data will erase it.</p>
+  <p id="footer-backup-line" class="footer-fine">Data lives in this browser's local storage · <button id="btn-export-2" class="linklike" type="button">download a backup</button> · clearing your browser data will erase it.</p>
   <p class="footer-fine">Free and open source · <a class="linklike" href="https://github.com/ogtfaber/tumor-tracker">github.com/ogtfaber/tumor-tracker</a></p>
 </footer>
 
@@ -189,6 +219,25 @@
     <div class="dialog-actions">
       <button type="button" id="png-cancel" class="btn btn-ghost">Cancel</button>
       <button type="submit" class="btn btn-primary">Download PNG</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="publish-dialog">
+  <form id="publish-form" method="dialog">
+    <h3>Publish anonymously</h3>
+    <p class="dialog-note">This publishes the data below to a page anyone can open, identified
+      only by ID <strong id="publish-dialog-code"></strong>. Read your own words — tumor names,
+      event labels, medication notes — and remove anything identifying (hospitals, doctors,
+      places, dates of well-known events) before publishing.</p>
+    <div id="publish-preview" class="publish-preview"></div>
+    <label class="publish-consent">
+      <input type="checkbox" id="publish-consent">
+      <span>I understand this will be publicly visible to anyone on the internet.</span>
+    </label>
+    <div class="dialog-actions">
+      <button type="button" id="publish-cancel" class="btn btn-ghost">Cancel</button>
+      <button type="submit" id="publish-confirm" class="btn btn-primary" disabled>Publish</button>
     </div>
   </form>
 </dialog>

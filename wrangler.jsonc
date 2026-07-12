@@ -1,13 +1,18 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tumor-tracker",
+  "main": "src/worker.js",
   "compatibility_date": "2026-07-07",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "."
+    "directory": ".",
+    "binding": "ASSETS"
   },
+  "kv_namespaces": [
+    { "binding": "PUBLISHED", "id": "local-dev-placeholder" }
+  ],
   "compatibility_flags": [
     "nodejs_compat"
   ]

@@ -29,9 +29,27 @@
   // JSON export. It is remembered only to prefill the Save-PNG dialog.
   var PATIENT_NAME_KEY = 'tumorTracker.patientName';
 
+  // Publishing: the secret update token lives outside `state` so a publish
+  // payload can never contain it. It IS injected into JSON backups (and read
+  // back on import) so a restored backup keeps the right to update.
+  var PUBLISH_TOKEN_KEY = 'tumorTracker.publishToken';
+  var PUBLISHED_AT_KEY = 'tumorTracker.publishedAt';
+  var TOKEN_RE = /^[0-9a-f]{48}$/;
+
+  // ---------------- public viewer routes ----------------
+  // /p/CODE renders one published dataset read-only; /explore lists all of
+  // them. In these modes localStorage is never read or written — `state`
+  // holds the fetched copy and vanishes with the tab.
+  var VIEW = (function () {
+    var m = location.pathname.match(/^\/p\/([A-HJKMNP-Z2-9]{6})$/);
+    if (m) return { mode: 'patient', code: m[1] };
+    if (location.pathname === '/explore') return { mode: 'explore' };
+    return null;
+  })();
+
   // ---------------- state ----------------
 
-  var state = load();
+  var state = VIEW ? blankState() : load();
   var charts = [];          // live Chart.js instances
   var armedButton = null;   // two-step delete state
   var armedTimer = null;
@@ -66,6 +84,7 @@
   }
 
   function save() {
+    if (VIEW) return; // viewer modes never persist anything
     if (hasData(state) && !state.code) state.code = genCode();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -186,6 +205,25 @@
   function isNum(v) { return typeof v === 'number' && isFinite(v); }
   function isDateStr(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
   function $(sel, root) { return (root || document).querySelector(sel); }
+
+  function getPublishToken() {
+    try {
+      var t = localStorage.getItem(PUBLISH_TOKEN_KEY);
+      return t && TOKEN_RE.test(t) ? t : null;
+    } catch (e) { return null; }
+  }
+  function setPublished(token, whenIso) {
+    try {
+      localStorage.setItem(PUBLISH_TOKEN_KEY, token);
+      if (whenIso) localStorage.setItem(PUBLISHED_AT_KEY, whenIso);
+    } catch (e) {}
+  }
+  function clearPublished() {
+    try {
+      localStorage.removeItem(PUBLISH_TOKEN_KEY);
+      localStorage.removeItem(PUBLISHED_AT_KEY);
+    } catch (e) {}
+  }
 
   // Parse "YYYY-MM-DD" as local noon — immune to timezone edge cases on chart axes.
   function ts(dateStr) {
@@ -325,6 +363,7 @@
     $('#btn-export').disabled = !dataExists;
     $('#btn-export-2').disabled = !dataExists;
     $('#clear-section').hidden = !dataExists;
+    renderPublish();
   }
 
   function renderLegend() {
@@ -646,7 +685,10 @@
     if (!btn) return;
     pngCard = btn.closest('.chart-card');
     var input = $('#png-patient-name');
-    try { input.value = localStorage.getItem(PATIENT_NAME_KEY) || ''; } catch (e) { input.value = ''; }
+    input.value = '';
+    if (!VIEW) {
+      try { input.value = localStorage.getItem(PATIENT_NAME_KEY) || ''; } catch (e) {}
+    }
     $('#png-dialog').showModal();
   });
 
@@ -657,10 +699,12 @@
   // still set here; a blank submit clears the remembered name.
   $('#png-form').addEventListener('submit', function () {
     var name = $('#png-patient-name').value.trim().slice(0, 80);
-    try {
-      if (name) localStorage.setItem(PATIENT_NAME_KEY, name);
-      else localStorage.removeItem(PATIENT_NAME_KEY);
-    } catch (e) {}
+    if (!VIEW) {
+      try {
+        if (name) localStorage.setItem(PATIENT_NAME_KEY, name);
+        else localStorage.removeItem(PATIENT_NAME_KEY);
+      } catch (e) {}
+    }
     if (pngCard) exportChartPng(pngCard, name);
   });
 
@@ -1063,7 +1107,16 @@
   // ---------------- export / import ----------------
 
   function exportData() {
-    var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    // Backups carry the publish token (outside `state`) so a restored backup
+    // can still update the published copy. The server strips it on publish.
+    var out = state;
+    var token = getPublishToken();
+    if (token) {
+      out = {};
+      for (var k in state) { if (Object.prototype.hasOwnProperty.call(state, k)) out[k] = state[k]; }
+      out.publishToken = token;
+    }
+    var blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'tumor-tracker-' + todayStr() + '.json';
@@ -1085,9 +1138,9 @@
     if (!file) return;
     var reader = new FileReader();
     reader.onload = function () {
-      var incoming;
-      try { incoming = normalize(JSON.parse(reader.result)); }
-      catch (e) { incoming = null; }
+      var parsed = null, incoming = null;
+      try { parsed = JSON.parse(reader.result); incoming = normalize(parsed); }
+      catch (e) {}
       if (!incoming) { toast('That file doesn’t look like a Tumor Tracker backup.'); return; }
       if (hasData(state)) {
         var n = incoming.tumors.length;
@@ -1100,10 +1153,183 @@
         if (!ok) return;
       }
       state = incoming;
+      // The imported dataset replaces everything — including publish rights.
+      if (parsed && typeof parsed.publishToken === 'string' && TOKEN_RE.test(parsed.publishToken)) {
+        setPublished(parsed.publishToken, null);
+        try { localStorage.removeItem(PUBLISHED_AT_KEY); } catch (e2) {}
+      } else {
+        clearPublished();
+      }
       save(); renderAll();
       toast('Data imported.');
     };
     reader.readAsText(file);
+  });
+
+  // ---------------- publishing ----------------
+  // Everything here is explicit user action; the app never publishes or
+  // updates the public copy on its own.
+
+  var publishBusy = false;
+
+  function apiFetch(method, path, body) {
+    return fetch(path, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ').'));
+        return data;
+      });
+    });
+  }
+
+  function canPublish() {
+    return state.tumors.some(function (t) { return t.measurements.length >= 2; });
+  }
+
+  function renderPublish() {
+    if (VIEW) { $('#publish-section').hidden = true; return; }
+    var dataExists = hasData(state);
+    var token = getPublishToken();
+    $('#publish-section').hidden = !dataExists;
+    if (!dataExists) return;
+    $('#btn-publish').hidden = !!token;
+    $('#btn-publish').disabled = !canPublish();
+    $('#btn-publish').title = canPublish() ? '' : 'Needs at least one tumor with two measurements.';
+    $('#btn-publish-update').hidden = !token;
+    $('#btn-unpublish').hidden = !token;
+    var link = $('#publish-link');
+    link.hidden = !token;
+    if (token) link.href = '/p/' + state.code;
+    var status = $('#publish-status');
+    var at = null;
+    try { at = localStorage.getItem(PUBLISHED_AT_KEY); } catch (e) {}
+    status.hidden = !token;
+    if (token) {
+      status.textContent = 'Published as ' + state.code +
+        (at ? ' · last pushed ' + new Date(at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '');
+    }
+  }
+
+  // Everything free-text, grouped, so the user can screen it before it goes public.
+  function publishPreviewHtml() {
+    var html = '<h4>Diagnosis</h4><p>' + esc(state.diagnosis || DEFAULT_DIAGNOSIS) + '</p>';
+    html += '<h4>Tumors &amp; measurement notes</h4><ul>';
+    state.tumors.forEach(function (t) {
+      html += '<li>' + esc(t.name) + ' — ' + t.measurements.length + ' measurement(s)';
+      t.measurements.forEach(function (m) {
+        if (m.note) html += '<br><span class="preview-note">' + esc(fmtDate(m.date) + ': ' + m.note) + '</span>';
+      });
+      html += '</li>';
+    });
+    html += '</ul>';
+    if (state.drugs.length) {
+      html += '<h4>Medications</h4><ul>';
+      state.drugs.forEach(function (d) {
+        html += '<li>' + esc(d.name) + (d.dose ? ' · ' + d.dose : '') +
+          ' · ' + esc(fmtDate(d.start)) + ' – ' + (d.end ? esc(fmtDate(d.end)) : 'ongoing');
+        if (d.note) html += '<br><span class="preview-note">' + esc(d.note) + '</span>';
+        html += '</li>';
+      });
+      html += '</ul>';
+    }
+    if (state.events.length) {
+      html += '<h4>Events</h4><ul>';
+      state.events.forEach(function (e) {
+        html += '<li>' + esc(fmtDate(e.date) + ': ' + e.label) + '</li>';
+      });
+      html += '</ul>';
+    }
+    return html;
+  }
+
+  function pushPublish(token) {
+    var body = { code: state.code, data: JSON.parse(JSON.stringify(state)) };
+    if (token) body.token = token;
+    return apiFetch('POST', '/api/publish', body);
+  }
+
+  $('#btn-publish').addEventListener('click', function () {
+    $('#publish-dialog-code').textContent = state.code || '';
+    $('#publish-preview').innerHTML = publishPreviewHtml();
+    $('#publish-consent').checked = false;
+    $('#publish-confirm').disabled = true;
+    $('#publish-dialog').showModal();
+  });
+
+  $('#publish-consent').addEventListener('change', function () {
+    $('#publish-confirm').disabled = !this.checked;
+  });
+  $('#publish-cancel').addEventListener('click', function () { $('#publish-dialog').close(); });
+
+  $('#publish-form').addEventListener('submit', function () {
+    if (publishBusy) return;
+    publishBusy = true;
+    var btn = $('#publish-confirm');
+    btn.disabled = true;
+    pushPublish(null).then(function (res) {
+      if (res.token) setPublished(res.token, res.summary.updatedAt);
+      renderPublish();
+      toast('Published — thank you for sharing.');
+      publishBusy = false;
+      btn.disabled = false;
+    }).catch(function (err) {
+      toast('Could not publish: ' + err.message);
+      publishBusy = false;
+      btn.disabled = false;
+    });
+  });
+
+  $('#btn-publish-update').addEventListener('click', function () {
+    if (publishBusy) return;
+    var token = getPublishToken();
+    if (!token) return;
+    publishBusy = true;
+    var btn = this;
+    btn.disabled = true;
+    pushPublish(token).then(function (res) {
+      // res.token only arrives when the server treated this as a first
+      // publish (our entry was deleted elsewhere) — store the fresh token,
+      // or the republished copy could never be updated or removed again.
+      setPublished(res.token || token, res.summary.updatedAt);
+      renderPublish();
+      toast('Published copy updated.');
+      publishBusy = false;
+      btn.disabled = false;
+    }).catch(function (err) {
+      // A 403 here means the stored token no longer matches the server's —
+      // e.g. a backup restored without its token. Per spec, explain and point
+      // at the removal path instead of offering a confusing publish-as-new.
+      var hint = /token does not match/.test(err.message)
+        ? ' This copy can no longer update the public page. To remove the public copy, contact the site owner (see the footer).'
+        : '';
+      toast('Could not update: ' + err.message + hint);
+      publishBusy = false;
+      btn.disabled = false;
+    });
+  });
+
+  $('#btn-unpublish').addEventListener('click', function () {
+    if (!armTwoStep(this, 'Click again to remove from the public gallery')) return;
+    if (publishBusy) return;
+    var token = getPublishToken();
+    if (!token) return;
+    publishBusy = true;
+    var btn = this;
+    btn.disabled = true;
+    apiFetch('DELETE', '/api/published/' + state.code, { token: token }).then(function () {
+      clearPublished();
+      renderPublish();
+      toast('Removed from the public gallery.');
+      publishBusy = false;
+      btn.disabled = false;
+    }).catch(function (err) {
+      toast('Could not unpublish: ' + err.message);
+      publishBusy = false;
+      btn.disabled = false;
+    });
   });
 
   // ---------------- onboarding ----------------
@@ -1116,13 +1342,39 @@
 
   // ---------------- clear all data ----------------
 
-  $('#btn-clear').addEventListener('click', function () {
-    if (!armTwoStep(this, 'Click again to delete everything')) return;
+  function wipeLocalData() {
+    clearPublished();
     exitDrugEdit();
     exitEventEdit();
     state = blankState();
     try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
     renderAll();
+  }
+
+  $('#btn-clear').addEventListener('click', function () {
+    if (!armTwoStep(this, 'Click again to delete everything')) return;
+    var pubToken = getPublishToken();
+    if (pubToken && state.code) {
+      var alsoUnpublish = window.confirm(
+        'This data is also published publicly as ID ' + state.code + '.\n\n' +
+        'Clearing this browser does NOT remove the public copy.\n\n' +
+        'OK = also remove it from the public gallery\nCancel = leave it published'
+      );
+      if (alsoUnpublish) {
+        // Unpublish must succeed before anything is deleted locally: clearing
+        // first would destroy the only token that can remove the public copy.
+        apiFetch('DELETE', '/api/published/' + state.code, { token: pubToken })
+          .then(function () {
+            wipeLocalData();
+            toast('Removed from the public gallery and deleted from this browser.');
+          })
+          .catch(function () {
+            toast('Could not remove the public copy — nothing was deleted. Please try again.');
+          });
+        return;
+      }
+    }
+    wipeLocalData();
     toast('All data deleted from this browser.');
   });
 
@@ -1135,5 +1387,75 @@
 
   Chart.register(window['chartjs-plugin-annotation']);
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-  renderAll();
+
+  function bootPatientView() {
+    document.body.classList.add('viewer');
+    var robots = document.createElement('meta');
+    robots.name = 'robots';
+    robots.content = 'noindex';
+    document.head.appendChild(robots);
+    document.title = 'Tumor Tracker — public view ' + VIEW.code;
+    var note = $('#viewer-note');
+    note.hidden = false;
+    note.textContent = 'Loading published data…';
+    apiFetch('GET', '/api/published/' + VIEW.code).then(function (res) {
+      var incoming = normalize(res.data);
+      if (!incoming) throw new Error('unreadable data');
+      state = incoming;
+      var updated = res.summary && res.summary.updatedAt
+        ? new Date(res.summary.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+        : null;
+      note.innerHTML = 'Public view — read-only, shared anonymously' +
+        (updated ? ' · updated ' + esc(updated) : '') +
+        ' · <a href="/explore">all published datasets</a> · <a href="/">track your own</a>';
+      renderAll();
+    }).catch(function (err) {
+      note.textContent = /404|Not published/.test(err.message)
+        ? 'Nothing is published under ID ' + VIEW.code + ' (anymore).'
+        : 'Could not load this published dataset — please try again later.';
+    });
+  }
+
+  function bootExploreView() {
+    document.body.classList.add('viewer', 'viewer-explore');
+    var robots = document.createElement('meta');
+    robots.name = 'robots';
+    robots.content = 'noindex';
+    document.head.appendChild(robots);
+    document.title = 'Tumor Tracker — published datasets';
+    var note = $('#viewer-note');
+    note.hidden = false;
+    note.innerHTML = 'Anonymously shared by patients using this tracker · <a href="/">track your own</a>';
+    $('#explore-section').hidden = false;
+    var host = $('#explore-list');
+    host.innerHTML = '<p class="explore-empty">Loading…</p>';
+    apiFetch('GET', '/api/published').then(function (res) {
+      if (!res.items.length) {
+        host.innerHTML = '<p class="explore-empty">Nothing has been published yet. ' +
+          'Be the first — open <a href="/">your tracker</a> and choose “Publish anonymously”.</p>';
+        return;
+      }
+      host.innerHTML = res.items.map(function (s) {
+        var span = s.firstDate && s.lastDate ? fmtDate(s.firstDate) + ' – ' + fmtDate(s.lastDate) : '';
+        return '<a class="explore-card" href="/p/' + esc(s.code) + '">' +
+          '<span class="explore-code">' + esc(s.code) + '</span>' +
+          '<span class="explore-diagnosis">' + esc(s.diagnosis || '') + '</span>' +
+          '<p>' + s.tumorCount + ' tumor' + (s.tumorCount === 1 ? '' : 's') + ' · ' +
+            s.measurementCount + ' measurement' + (s.measurementCount === 1 ? '' : 's') +
+            (span ? '<br>' + esc(span) : '') +
+            (s.updatedAt ? '<br>updated ' + esc(new Date(s.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })) : '') +
+          '</p></a>';
+      }).join('');
+    }).catch(function () {
+      host.innerHTML = '<p class="explore-empty">Could not load the gallery — please try again later.</p>';
+    });
+  }
+
+  if (!VIEW) {
+    renderAll();
+  } else if (VIEW.mode === 'patient') {
+    bootPatientView();
+  } else {
+    bootExploreView();
+  }
 })();
