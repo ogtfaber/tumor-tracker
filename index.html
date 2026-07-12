@@ -158,6 +158,24 @@
     </form>
   </section>
 
+  <!-- ============ PUBLISH ============ -->
+  <section class="data-section" id="publish-section" aria-labelledby="publish-heading" hidden>
+    <div class="section-head">
+      <h2 id="publish-heading">Share anonymously</h2>
+      <p class="section-hint">Put a copy of this dataset — identified only by its Patient ID —
+        on the <a href="/explore">public gallery</a> so other patients can see a real course
+        over time. Nothing syncs automatically: you choose when to push an update.</p>
+    </div>
+    <p id="publish-status" class="publish-status" hidden></p>
+    <div class="publish-actions">
+      <button id="btn-publish" class="btn btn-primary" type="button">Publish anonymously…</button>
+      <button id="btn-publish-update" class="btn btn-primary" type="button" hidden
+        title="Pushes the data as it is right now to the public page — check any new notes or labels for identifying details first.">Update published data</button>
+      <a id="publish-link" class="linklike" target="_blank" rel="noopener" hidden>View public page</a>
+      <button id="btn-unpublish" class="btn btn-danger" type="button" hidden>Unpublish</button>
+    </div>
+  </section>
+
   <!-- ============ CLEAR DATA ============ -->
   <section class="data-section" id="clear-section" aria-labelledby="clear-heading" hidden>
     <div class="section-head">
@@ -189,6 +207,25 @@
     <div class="dialog-actions">
       <button type="button" id="png-cancel" class="btn btn-ghost">Cancel</button>
       <button type="submit" class="btn btn-primary">Download PNG</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="publish-dialog">
+  <form id="publish-form" method="dialog">
+    <h3>Publish anonymously</h3>
+    <p class="dialog-note">This publishes the data below to a page anyone can open, identified
+      only by ID <strong id="publish-dialog-code"></strong>. Read your own words — tumor names,
+      event labels, medication notes — and remove anything identifying (hospitals, doctors,
+      places, dates of well-known events) before publishing.</p>
+    <div id="publish-preview" class="publish-preview"></div>
+    <label class="publish-consent">
+      <input type="checkbox" id="publish-consent">
+      <span>I understand this will be publicly visible to anyone on the internet.</span>
+    </label>
+    <div class="dialog-actions">
+      <button type="button" id="publish-cancel" class="btn btn-ghost">Cancel</button>
+      <button type="submit" id="publish-confirm" class="btn btn-primary" disabled>Publish</button>
     </div>
   </form>
 </dialog>
