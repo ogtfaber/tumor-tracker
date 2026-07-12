@@ -790,3 +790,46 @@ body.viewer #footer-backup-line { display: none; }
   margin: .4rem 0 0;
 }
 .viewer-note a { color: inherit; }
+
+/* ---------------- Explore gallery ---------------- */
+
+body.viewer-explore #charts-section,
+body.viewer-explore #overlay-legend { display: none; }
+
+.explore-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+.explore-card {
+  display: block;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 1rem 1.2rem;
+  text-decoration: none;
+  color: var(--ink);
+  background: var(--surface);
+}
+.explore-card:hover { border-color: var(--ink-3); }
+.explore-card .explore-code {
+  font: 600 1rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .12em;
+}
+.explore-card .explore-diagnosis {
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-left: .5rem;
+}
+.explore-card p {
+  margin: .5rem 0 0;
+  font-size: .82rem;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+.explore-empty {
+  color: var(--ink-2);
+  font-size: .9rem;
+}

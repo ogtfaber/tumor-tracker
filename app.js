@@ -1375,13 +1375,46 @@
     });
   }
 
-  function bootExploreView() { document.body.classList.add('viewer'); }
+  function bootExploreView() {
+    document.body.classList.add('viewer', 'viewer-explore');
+    var robots = document.createElement('meta');
+    robots.name = 'robots';
+    robots.content = 'noindex';
+    document.head.appendChild(robots);
+    document.title = 'Tumor Tracker — published datasets';
+    var note = $('#viewer-note');
+    note.hidden = false;
+    note.innerHTML = 'Anonymously shared by patients using this tracker · <a href="/">track your own</a>';
+    $('#explore-section').hidden = false;
+    var host = $('#explore-list');
+    host.innerHTML = '<p class="explore-empty">Loading…</p>';
+    apiFetch('GET', '/api/published').then(function (res) {
+      if (!res.items.length) {
+        host.innerHTML = '<p class="explore-empty">Nothing has been published yet. ' +
+          'Be the first — open <a href="/">your tracker</a> and choose “Publish anonymously”.</p>';
+        return;
+      }
+      host.innerHTML = res.items.map(function (s) {
+        var span = s.firstDate && s.lastDate ? fmtDate(s.firstDate) + ' – ' + fmtDate(s.lastDate) : '';
+        return '<a class="explore-card" href="/p/' + esc(s.code) + '">' +
+          '<span class="explore-code">' + esc(s.code) + '</span>' +
+          '<span class="explore-diagnosis">' + esc(s.diagnosis || '') + '</span>' +
+          '<p>' + s.tumorCount + ' tumor' + (s.tumorCount === 1 ? '' : 's') + ' · ' +
+            s.measurementCount + ' measurement' + (s.measurementCount === 1 ? '' : 's') +
+            (span ? '<br>' + esc(span) : '') +
+            (s.updatedAt ? '<br>updated ' + esc(new Date(s.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })) : '') +
+          '</p></a>';
+      }).join('');
+    }).catch(function () {
+      host.innerHTML = '<p class="explore-empty">Could not load the gallery — please try again later.</p>';
+    });
+  }
 
   if (!VIEW) {
     renderAll();
   } else if (VIEW.mode === 'patient') {
     bootPatientView();
   } else {
-    bootExploreView(); // Task 6
+    bootExploreView();
   }
 })();
