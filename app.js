@@ -36,9 +36,20 @@
   var PUBLISHED_AT_KEY = 'tumorTracker.publishedAt';
   var TOKEN_RE = /^[0-9a-f]{48}$/;
 
+  // ---------------- public viewer routes ----------------
+  // /p/CODE renders one published dataset read-only; /explore lists all of
+  // them. In these modes localStorage is never read or written — `state`
+  // holds the fetched copy and vanishes with the tab.
+  var VIEW = (function () {
+    var m = location.pathname.match(/^\/p\/([A-HJKMNP-Z2-9]{6})$/);
+    if (m) return { mode: 'patient', code: m[1] };
+    if (location.pathname === '/explore') return { mode: 'explore' };
+    return null;
+  })();
+
   // ---------------- state ----------------
 
-  var state = load();
+  var state = VIEW ? blankState() : load();
   var charts = [];          // live Chart.js instances
   var armedButton = null;   // two-step delete state
   var armedTimer = null;
@@ -73,6 +84,7 @@
   }
 
   function save() {
+    if (VIEW) return; // viewer modes never persist anything
     if (hasData(state) && !state.code) state.code = genCode();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -673,7 +685,10 @@
     if (!btn) return;
     pngCard = btn.closest('.chart-card');
     var input = $('#png-patient-name');
-    try { input.value = localStorage.getItem(PATIENT_NAME_KEY) || ''; } catch (e) { input.value = ''; }
+    input.value = '';
+    if (!VIEW) {
+      try { input.value = localStorage.getItem(PATIENT_NAME_KEY) || ''; } catch (e) {}
+    }
     $('#png-dialog').showModal();
   });
 
@@ -684,10 +699,12 @@
   // still set here; a blank submit clears the remembered name.
   $('#png-form').addEventListener('submit', function () {
     var name = $('#png-patient-name').value.trim().slice(0, 80);
-    try {
-      if (name) localStorage.setItem(PATIENT_NAME_KEY, name);
-      else localStorage.removeItem(PATIENT_NAME_KEY);
-    } catch (e) {}
+    if (!VIEW) {
+      try {
+        if (name) localStorage.setItem(PATIENT_NAME_KEY, name);
+        else localStorage.removeItem(PATIENT_NAME_KEY);
+      } catch (e) {}
+    }
     if (pngCard) exportChartPng(pngCard, name);
   });
 
@@ -1328,5 +1345,42 @@
 
   Chart.register(window['chartjs-plugin-annotation']);
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-  renderAll();
+
+  function bootPatientView() {
+    document.body.classList.add('viewer');
+    var robots = document.createElement('meta');
+    robots.name = 'robots';
+    robots.content = 'noindex';
+    document.head.appendChild(robots);
+    document.title = 'Tumor Tracker — public view ' + VIEW.code;
+    var note = $('#viewer-note');
+    note.hidden = false;
+    note.textContent = 'Loading published data…';
+    apiFetch('GET', '/api/published/' + VIEW.code).then(function (res) {
+      var incoming = normalize(res.data);
+      if (!incoming) throw new Error('unreadable data');
+      state = incoming;
+      var updated = res.summary && res.summary.updatedAt
+        ? new Date(res.summary.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+        : null;
+      note.innerHTML = 'Public view — read-only, shared anonymously' +
+        (updated ? ' · updated ' + esc(updated) : '') +
+        ' · <a href="/explore">all published datasets</a> · <a href="/">track your own</a>';
+      renderAll();
+    }).catch(function (err) {
+      note.textContent = /404|Not published/.test(err.message)
+        ? 'Nothing is published under ID ' + VIEW.code + ' (anymore).'
+        : 'Could not load this published dataset — please try again later.';
+    });
+  }
+
+  function bootExploreView() { document.body.classList.add('viewer'); }
+
+  if (!VIEW) {
+    renderAll();
+  } else if (VIEW.mode === 'patient') {
+    bootPatientView();
+  } else {
+    bootExploreView(); // Task 6
+  }
 })();

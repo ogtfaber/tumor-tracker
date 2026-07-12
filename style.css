@@ -773,3 +773,19 @@ main > section:nth-of-type(4) { animation-delay: .24s; }
   font-size: .85rem;
   margin: 0 0 1.1rem;
 }
+
+/* ---------------- Public viewer mode ---------------- */
+
+/* Read-only: every editing/data section, the import/export buttons, and the
+   local-storage privacy note disappear. Charts and Save PNG remain. */
+body.viewer .data-section,
+body.viewer .masthead-actions,
+body.viewer .privacy-note,
+body.viewer #empty-state { display: none; }
+
+.viewer-note {
+  font-size: .85rem;
+  color: var(--ink-2);
+  margin: .4rem 0 0;
+}
+.viewer-note a { color: inherit; }
