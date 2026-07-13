@@ -235,26 +235,31 @@ async function handleResummarize(request, env) {
   const isAdmin = !!(given && env.ADMIN_KEY &&
     (await sha256hex(given)) === (await sha256hex(env.ADMIN_KEY)));
   if (!isAdmin) return json({ error: 'Forbidden.' }, 403);
-  const list = await env.PUBLISHED.list({ prefix: 'pub:' });
   let updated = 0;
   const failed = [];
-  for (const k of list.keys) {
-    try {
-      const entry = await env.PUBLISHED.getWithMetadata(k.name, 'json');
-      if (!entry.value) continue; // deleted between list() and get()
-      if (!entry.value.data) { failed.push(k.name); continue; }
-      const now = new Date().toISOString();
-      const summary = summarize(
-        entry.value.data,
-        entry.metadata?.publishedAt || now,
-        entry.metadata?.updatedAt || now,
-      );
-      await env.PUBLISHED.put(k.name, JSON.stringify(entry.value), { metadata: summary });
-      updated++;
-    } catch {
-      failed.push(k.name);
+  let cursor;
+  do {
+    const list = await env.PUBLISHED.list({ prefix: 'pub:', cursor });
+    for (const k of list.keys) {
+      try {
+        const entry = await env.PUBLISHED.getWithMetadata(k.name, 'json');
+        if (!entry.value) continue; // deleted between list() and get()
+        if (!entry.value.data) { failed.push(k.name); continue; }
+        const now = new Date().toISOString();
+        const summary = summarize(
+          entry.value.data,
+          entry.metadata?.publishedAt || now,
+          entry.metadata?.updatedAt || now,
+        );
+        await env.PUBLISHED.put(k.name, JSON.stringify(entry.value), { metadata: summary });
+        updated++;
+      } catch (err) {
+        console.error('resummarize failed:', k.name, err);
+        failed.push(k.name);
+      }
     }
-  }
+    cursor = list.list_complete ? null : list.cursor;
+  } while (cursor);
   return json(failed.length ? { ok: true, updated, failed } : { ok: true, updated });
 }
 

@@ -22,11 +22,13 @@ Cards render `spark` as an inline SVG polyline (2px, `--series-1`, no axes,
 ## Backfill / future migrations
 `POST /api/admin/resummarize` (X-Admin-Key, same secret as delete) lists all
 `pub:*` keys and rewrites each key's metadata from its stored dataset,
-preserving publishedAt/updatedAt and the stored value bytes. Published
-datasets are the source of truth; summaries are derived and can be
-regenerated at any time without users republishing. The endpoint isolates
-per-entry failures in a `failed: [keys]` array in the response, allowing
-healthy entries to update even when some entries have malformed data.
+preserving publishedAt/updatedAt and re-putting the last-read stored value
+(logically equivalent bytes). Published datasets are the source of truth;
+summaries are derived and can be regenerated at any time without users
+republishing. The endpoint isolates per-entry failures in a `failed: [keys]`
+array in the response, allowing healthy entries to update even when some
+entries have malformed data. Writes are last-write-wins: a publish racing
+the backfill for the same key can be reverted, so run it at a quiet moment.
 
 ## Testing
 1. Publish a dataset with ≥ 2 measurements and 1 drug → summary has
