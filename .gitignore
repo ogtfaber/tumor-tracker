@@ -8,3 +8,6 @@
 .env*
 !.env.example
 .dev.vars
+
+# internal implementation plans — not for the public repo (specs ARE committed)
+docs/superpowers/plans/

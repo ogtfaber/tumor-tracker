@@ -610,6 +610,20 @@ textarea { resize: vertical; }
 
 .list-empty { color: var(--ink-3); font-size: .85rem; font-style: italic; padding: .4rem 0; }
 
+.event-private-chip {
+  display: inline-block;
+  margin-left: .45rem;
+  padding: .05rem .45rem;
+  font-size: .68rem;
+  font-style: normal;
+  font-weight: 500;
+  color: var(--ink-3);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 /* ---------------- footer & toast ---------------- */
 
 .site-footer {
@@ -766,6 +780,9 @@ main > section:nth-of-type(4) { animation-delay: .24s; }
 .publish-preview h4:first-child { margin-top: 0; }
 .publish-preview ul { margin: 0; padding-left: 1.1rem; }
 .publish-preview .preview-note { color: var(--ink-2); font-style: italic; }
+.publish-preview .preview-events { list-style: none; padding-left: 0; }
+.publish-preview .preview-events label { display: inline-flex; align-items: baseline; gap: .45rem; cursor: pointer; }
+.publish-preview .preview-events input { margin: 0; position: relative; top: .1rem; }
 .publish-consent {
   display: flex;
   gap: .5rem;
