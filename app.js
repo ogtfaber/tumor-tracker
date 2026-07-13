@@ -1524,6 +1524,32 @@
     });
   }
 
+  // Tiny inline-SVG preview for a gallery card. `spark` comes from the
+  // published summary: { d: [day offsets], v: [values] }. Returns '' when
+  // the data isn't plottable — summaries from before sparklines have none.
+  function sparkSvg(spark) {
+    if (!spark || !Array.isArray(spark.d) || !Array.isArray(spark.v)) return '';
+    var d = spark.d, v = spark.v;
+    if (v.length < 2 || d.length !== v.length) return '';
+    for (var i = 0; i < v.length; i++) {
+      if (typeof d[i] !== 'number' || !isFinite(d[i]) ||
+          typeof v[i] !== 'number' || !isFinite(v[i])) return '';
+    }
+    var dMax = d[d.length - 1] || 1;
+    var vMin = Math.min.apply(null, v);
+    var vMax = Math.max.apply(null, v);
+    var vSpan = vMax - vMin;
+    var pts = [];
+    for (i = 0; i < v.length; i++) {
+      var x = (d[i] / dMax) * 100;
+      var y = vSpan ? 26 - ((v[i] - vMin) / vSpan) * 22 : 15;
+      pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+    }
+    return '<svg class="explore-spark" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">' +
+      '<polyline points="' + pts.join(' ') + '" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  }
+
   function bootExploreView() {
     document.body.classList.add('viewer', 'viewer-explore');
     var robots = document.createElement('meta');
@@ -1545,11 +1571,14 @@
       }
       host.innerHTML = res.items.map(function (s) {
         var span = s.firstDate && s.lastDate ? fmtDate(s.firstDate) + ' – ' + fmtDate(s.lastDate) : '';
+        var meds = typeof s.drugCount === 'number'
+          ? ' · ' + s.drugCount + ' medication' + (s.drugCount === 1 ? '' : 's') : '';
         return '<a class="explore-card" href="/p/' + esc(s.code) + '">' +
           '<span class="explore-code">' + esc(s.code) + '</span>' +
           '<span class="explore-diagnosis">' + esc(s.diagnosis || '') + '</span>' +
+          sparkSvg(s.spark) +
           '<p>' + s.tumorCount + ' tumor' + (s.tumorCount === 1 ? '' : 's') + ' · ' +
-            s.measurementCount + ' measurement' + (s.measurementCount === 1 ? '' : 's') +
+            s.measurementCount + ' measurement' + (s.measurementCount === 1 ? '' : 's') + meds +
             (span ? '<br>' + esc(span) : '') +
             (s.updatedAt ? '<br>updated ' + esc(new Date(s.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })) : '') +
           '</p></a>';
