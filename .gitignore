@@ -8,3 +8,6 @@
 .env*
 !.env.example
 .dev.vars
+
+# internal design docs — not for the public repo
+docs/superpowers/
