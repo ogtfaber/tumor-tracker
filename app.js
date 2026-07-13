@@ -1295,7 +1295,12 @@
     var btn = $('#publish-confirm');
     btn.disabled = true;
     // Persist the checkbox choices onto the events before pushing, so the
-    // preference survives in backups and pre-fills the next dialog.
+    // preference survives in backups and pre-fills the next dialog. Snapshot
+    // the old flags first: if the push fails the public copy is unchanged,
+    // and keeping the new flags would show "not published" on an event that
+    // is still publicly visible — roll back so the UI reflects reality.
+    var prevPrivate = {};
+    state.events.forEach(function (e) { prevPrivate[e.id] = e.private === true; });
     $('#publish-preview').querySelectorAll('[data-publish-event]').forEach(function (box) {
       var e = state.events.find(function (x) { return x.id === box.getAttribute('data-publish-event'); });
       if (!e) return;
@@ -1314,6 +1319,13 @@
       publishBusy = false;
       btn.disabled = !$('#publish-consent').checked;
     }).catch(function (err) {
+      // The push failed, so the public copy is unchanged — restore the flags
+      // to match it (a failed push behaves like cancel).
+      state.events.forEach(function (e) {
+        if (prevPrivate[e.id]) e.private = true; else delete e.private;
+      });
+      save();
+      renderEvents();
       // A 403 on update means the stored token no longer matches the
       // server's — e.g. a backup restored without its token. Explain and
       // point at the removal path instead of offering a confusing
