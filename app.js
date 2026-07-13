@@ -1376,14 +1376,16 @@
     save();
     renderEvents();
     var token = getPublishToken();
+    // pushPublish snapshots `state` now, but the page stays editable while
+    // the request is in flight — so publishedAt must record THIS moment, not
+    // the completion time, or a mid-flight edit would be marked as pushed.
+    var pushedUpdatedAt = state.updatedAt;
     pushPublish(token).then(function (res) {
       // res.token arrives on first publish, or when the server treated an
       // update as a first publish (our entry was deleted elsewhere) — store
       // the fresh token, or the copy could never be updated or removed again.
       if (res.token || token) setPublished(res.token || token);
-      // Stamped after the pre-push save() above, so publishedAt >= updatedAt
-      // and the copy does not immediately count as changed again.
-      state.publishedAt = new Date().toISOString();
+      state.publishedAt = pushedUpdatedAt;
       save({ touch: false });
       renderPublish();
       $('#publish-done-title').textContent = token ? 'Published copy updated' : 'Published — thank you for sharing';

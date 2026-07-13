@@ -21,7 +21,11 @@ to return 200 (takes a few seconds).
 Gotcha: the assets directory is the repo root (`"directory": "."`), so ANY file
 written into the repo (screenshots, scratch files) triggers a wrangler reload
 and can make an in-flight page load hang. Save browser screenshots to the
-scratchpad, not the repo.
+scratchpad, not the repo. The Playwright MCP also auto-writes snapshot files
+to `.playwright-mcp/` on every action — reloads triggered mid-request can 503
+an API call, or worse, drop only the RESPONSE of a publish that succeeded
+server-side (client then has no token; clean stale entries with
+`npx wrangler kv key delete --binding PUBLISHED "pub:CODE" --local`).
 
 ## Driving the app (Playwright MCP)
 
