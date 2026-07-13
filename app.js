@@ -136,7 +136,10 @@
       // tumorId scopes the event to one tumor's chart; null (or a stale id) means every chart
       var tumorId = typeof e.tumorId === 'string' && out.tumors.some(function (t) { return t.id === e.tumorId; })
         ? e.tumorId : null;
-      out.events.push({ id: e.id || uid(), date: e.date, label: e.label, tumorId: tumorId });
+      var ev = { id: e.id || uid(), date: e.date, label: e.label, tumorId: tumorId };
+      // publish preference: private events stay out of the published copy
+      if (e.private === true) ev.private = true;
+      out.events.push(ev);
     });
     return out;
   }
@@ -1247,6 +1250,11 @@
 
   function pushPublish(token) {
     var body = { code: state.code, data: JSON.parse(JSON.stringify(state)) };
+    // Private events never leave the browser; strip the flag from the rest
+    // (the server's field whitelist would drop it anyway — belt and braces).
+    body.data.events = body.data.events
+      .filter(function (e) { return e.private !== true; })
+      .map(function (e) { delete e.private; return e; });
     if (token) body.token = token;
     return apiFetch('POST', '/api/publish', body);
   }
