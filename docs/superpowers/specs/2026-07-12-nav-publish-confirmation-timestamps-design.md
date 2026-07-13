@@ -78,9 +78,9 @@ Details:
   already-published backup does not falsely show pending changes.
 - `normalize()` accepts the three fields as optional ISO strings and drops
   invalid values.
-- The published payload carries the timestamps like the rest of the file;
-  they are non-identifying (the public page already shows a server-side
-  "updated" date).
+- The worker's field whitelist strips the timestamps from the published
+  payload (like any other unknown field), so they never appear in the
+  public copy.
 
 ## Testing
 

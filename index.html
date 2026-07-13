@@ -14,6 +14,14 @@
 </head>
 <body>
 
+<nav class="site-nav" aria-label="Site">
+  <div class="site-nav-inner">
+    <a href="/" data-nav="home">My tracker</a>
+    <a href="/explore" data-nav="explore">Explore shared</a>
+    <a id="nav-published" data-nav="published" hidden>My published page</a>
+  </div>
+</nav>
+
 <header class="masthead">
   <div class="masthead-inner">
     <div class="masthead-title">
@@ -239,6 +247,18 @@
     <div class="dialog-actions">
       <button type="button" id="publish-cancel" class="btn btn-ghost">Cancel</button>
       <button type="submit" id="publish-confirm" class="btn btn-primary" disabled>Publish</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="publish-done-dialog">
+  <form method="dialog">
+    <h3 id="publish-done-title">Published</h3>
+    <p class="dialog-note">Your data is now live on the public gallery, identified only by
+      ID <strong id="publish-done-code"></strong>. Open your page to check how it looks.</p>
+    <div class="dialog-actions">
+      <button type="submit" class="btn btn-ghost">Close</button>
+      <a id="publish-done-view" class="btn btn-primary" href="#">View my published page</a>
     </div>
   </form>
 </dialog>
