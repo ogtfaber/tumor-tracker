@@ -98,6 +98,8 @@ function thin(spark, max) {
   return { d: pick.map((j) => spark.d[j]), v: pick.map((j) => spark.v[j]) };
 }
 
+const metaBytes = (obj) => new TextEncoder().encode(JSON.stringify(obj)).length;
+
 function summarize(data, publishedAt, updatedAt) {
   const dates = [];
   let measurementCount = 0;
@@ -119,8 +121,8 @@ function summarize(data, publishedAt, updatedAt) {
   };
   let spark = sparkline(data);
   if (spark) spark = thin(spark, SPARK_POINTS);
-  if (spark && JSON.stringify({ ...summary, spark }).length > 1000) spark = thin(spark, 12);
-  if (spark && JSON.stringify({ ...summary, spark }).length > 1000) spark = null;
+  if (spark && metaBytes({ ...summary, spark }) > 1000) spark = thin(spark, 12);
+  if (spark && metaBytes({ ...summary, spark }) > 1000) spark = null;
   if (spark) summary.spark = spark;
   return summary;
 }
