@@ -55,7 +55,7 @@
   var armedTimer = null;
 
   function blankState() {
-    return { schemaVersion: SCHEMA_VERSION, diagnosis: DEFAULT_DIAGNOSIS, code: null, tumors: [], drugs: [], events: [] };
+    return { schemaVersion: SCHEMA_VERSION, diagnosis: DEFAULT_DIAGNOSIS, code: null, createdAt: null, updatedAt: null, publishedAt: null, tumors: [], drugs: [], events: [] };
   }
 
   function load() {
@@ -72,6 +72,21 @@
         dirty = true;
       }
       if (hasData(out) && !out.code) { out.code = genCode(); dirty = true; }
+      // Timestamps arrived after the first datasets — backfill with the load
+      // time so the publish dirty-check always has something to compare.
+      if (hasData(out)) {
+        var nowIso = new Date().toISOString();
+        if (!out.createdAt) { out.createdAt = nowIso; dirty = true; }
+        if (!out.updatedAt) { out.updatedAt = nowIso; dirty = true; }
+      }
+      // One-time migration: publishedAt moves from its own key into the file.
+      try {
+        var legacyAt = localStorage.getItem(PUBLISHED_AT_KEY);
+        if (legacyAt) {
+          if (!out.publishedAt && isIsoStr(legacyAt)) { out.publishedAt = new Date(legacyAt).toISOString(); dirty = true; }
+          localStorage.removeItem(PUBLISHED_AT_KEY);
+        }
+      } catch (e4) {}
       if (dirty) {
         // not save(): `state` is not assigned yet while load() runs
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(out)); } catch (e3) {}
@@ -83,14 +98,24 @@
     }
   }
 
-  function save() {
+  // save({touch:false}) persists without bumping updatedAt — for writes where
+  // the content itself did not change (import keeps the backup's own
+  // timestamps; a successful publish only stamps publishedAt).
+  function save(opts) {
     if (VIEW) return; // viewer modes never persist anything
     if (hasData(state) && !state.code) state.code = genCode();
+    var now = new Date().toISOString();
+    if (hasData(state) && !state.createdAt) state.createdAt = now;
+    if (!opts || opts.touch !== false) state.updatedAt = now;
+    else if (hasData(state) && !state.updatedAt) state.updatedAt = now;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
       toast('Could not save — browser storage may be full or blocked.');
     }
+    // Publish buttons key off updatedAt vs publishedAt, so every save must
+    // refresh them — callers only rerender the sections they touched.
+    renderPublish();
   }
 
   // Validate + coerce an arbitrary parsed object into our schema. Returns null if hopeless.
@@ -99,6 +124,9 @@
     var out = blankState();
     if (typeof data.diagnosis === 'string' && data.diagnosis.trim()) out.diagnosis = data.diagnosis.trim().slice(0, 40);
     if (typeof data.code === 'string' && CODE_RE.test(data.code)) out.code = data.code;
+    ['createdAt', 'updatedAt', 'publishedAt'].forEach(function (k) {
+      if (isIsoStr(data[k])) out[k] = data[k];
+    });
     (Array.isArray(data.tumors) ? data.tumors : []).forEach(function (t) {
       if (!t || typeof t.name !== 'string' || !TYPES[t.type]) return;
       var tumor = { id: t.id || uid(), name: t.name, type: t.type, measurements: [] };
@@ -207,6 +235,7 @@
   }
   function isNum(v) { return typeof v === 'number' && isFinite(v); }
   function isDateStr(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+  function isIsoStr(s) { return typeof s === 'string' && !isNaN(Date.parse(s)); }
   function $(sel, root) { return (root || document).querySelector(sel); }
 
   function getPublishToken() {
@@ -215,11 +244,8 @@
       return t && TOKEN_RE.test(t) ? t : null;
     } catch (e) { return null; }
   }
-  function setPublished(token, whenIso) {
-    try {
-      localStorage.setItem(PUBLISH_TOKEN_KEY, token);
-      if (whenIso) localStorage.setItem(PUBLISHED_AT_KEY, whenIso);
-    } catch (e) {}
+  function setPublished(token) {
+    try { localStorage.setItem(PUBLISH_TOKEN_KEY, token); } catch (e) {}
   }
   function clearPublished() {
     try {
@@ -1160,12 +1186,13 @@
       state = incoming;
       // The imported dataset replaces everything — including publish rights.
       if (parsed && typeof parsed.publishToken === 'string' && TOKEN_RE.test(parsed.publishToken)) {
-        setPublished(parsed.publishToken, null);
-        try { localStorage.removeItem(PUBLISHED_AT_KEY); } catch (e2) {}
+        setPublished(parsed.publishToken);
       } else {
         clearPublished();
       }
-      save(); renderAll();
+      // touch:false — the backup's own timestamps decide whether the
+      // published copy (if any) still matches.
+      save({ touch: false }); renderAll();
       toast('Data imported.');
     };
     reader.readAsText(file);
@@ -1194,33 +1221,73 @@
     return state.tumors.some(function (t) { return t.measurements.length >= 2; });
   }
 
+  // Published copies track freshness by timestamp: any content save() bumps
+  // updatedAt past publishedAt until the next successful push.
+  function hasUnpublishedChanges() {
+    if (!state.publishedAt) return true;
+    return !state.updatedAt || state.updatedAt > state.publishedAt;
+  }
+
   function renderPublish() {
+    renderNav();
     if (VIEW) { $('#publish-section').hidden = true; return; }
     var dataExists = hasData(state);
     var token = getPublishToken();
+    var dirty = hasUnpublishedChanges();
     var topBtn = $('#btn-publish-top');
     topBtn.hidden = !dataExists;
     topBtn.textContent = token ? 'Update published data' : 'Publish anonymously…';
-    topBtn.disabled = !token && !canPublish();
-    topBtn.title = topBtn.disabled ? 'Needs at least one tumor with two measurements.' : '';
+    topBtn.disabled = token ? !dirty : !canPublish();
+    topBtn.title = !token && topBtn.disabled ? 'Needs at least one tumor with two measurements.'
+      : token && !dirty ? 'No changes since last publish.' : '';
     $('#publish-section').hidden = !dataExists;
     if (!dataExists) return;
     $('#btn-publish').hidden = !!token;
     $('#btn-publish').disabled = !canPublish();
     $('#btn-publish').title = canPublish() ? '' : 'Needs at least one tumor with two measurements.';
-    $('#btn-publish-update').hidden = !token;
+    var updBtn = $('#btn-publish-update');
+    updBtn.hidden = !token;
+    updBtn.disabled = !dirty;
+    updBtn.title = dirty
+      ? 'Pushes the data as it is right now to the public page — check any new notes or labels for identifying details first.'
+      : 'No changes since last publish.';
     $('#btn-unpublish').hidden = !token;
     var link = $('#publish-link');
     link.hidden = !token;
     if (token) link.href = '/p/' + state.code;
     var status = $('#publish-status');
-    var at = null;
-    try { at = localStorage.getItem(PUBLISHED_AT_KEY); } catch (e) {}
     status.hidden = !token;
     if (token) {
       status.textContent = 'Published as ' + state.code +
-        (at ? ' · last pushed ' + new Date(at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '');
+        (state.publishedAt ? ' · last pushed ' + new Date(state.publishedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '');
     }
+  }
+
+  // ---------------- site nav ----------------
+  // One nav strip across all three routes. Viewer modes only ever *read*
+  // localStorage here, to learn whether this browser has a published page.
+  function renderNav() {
+    var token = getPublishToken();
+    var code = null;
+    if (VIEW) {
+      try {
+        var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        if (saved && typeof saved.code === 'string' && CODE_RE.test(saved.code)) code = saved.code;
+      } catch (e) {}
+    } else {
+      code = state.code;
+    }
+    var mine = token && code ? code : null;
+    var navLink = $('#nav-published');
+    navLink.hidden = !mine;
+    if (mine) navLink.href = '/p/' + mine;
+    var current = !VIEW ? 'home'
+      : VIEW.mode === 'explore' ? 'explore'
+      : mine && VIEW.code === mine ? 'published' : null;
+    document.querySelectorAll('.site-nav a').forEach(function (a) {
+      if (a.getAttribute('data-nav') === current) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
   }
 
   // Everything free-text, grouped, so the user can screen it before it goes public.
@@ -1309,13 +1376,22 @@
     save();
     renderEvents();
     var token = getPublishToken();
+    // pushPublish snapshots `state` now, but the page stays editable while
+    // the request is in flight — so publishedAt must record THIS moment, not
+    // the completion time, or a mid-flight edit would be marked as pushed.
+    var pushedUpdatedAt = state.updatedAt;
     pushPublish(token).then(function (res) {
       // res.token arrives on first publish, or when the server treated an
       // update as a first publish (our entry was deleted elsewhere) — store
       // the fresh token, or the copy could never be updated or removed again.
-      if (res.token || token) setPublished(res.token || token, res.summary.updatedAt);
+      if (res.token || token) setPublished(res.token || token);
+      state.publishedAt = pushedUpdatedAt;
+      save({ touch: false });
       renderPublish();
-      toast(token ? 'Published copy updated.' : 'Published — thank you for sharing.');
+      $('#publish-done-title').textContent = token ? 'Published copy updated' : 'Published — thank you for sharing';
+      $('#publish-done-code').textContent = state.code || '';
+      $('#publish-done-view').href = '/p/' + state.code;
+      $('#publish-done-dialog').showModal();
       publishBusy = false;
       btn.disabled = !$('#publish-consent').checked;
     }).catch(function (err) {
@@ -1351,6 +1427,8 @@
     btn.disabled = true;
     apiFetch('DELETE', '/api/published/' + state.code, { token: token }).then(function () {
       clearPublished();
+      state.publishedAt = null;
+      save({ touch: false });
       renderPublish();
       toast('Removed from the public gallery.');
       publishBusy = false;
@@ -1481,6 +1559,7 @@
     });
   }
 
+  renderNav(); // viewer modes render it before (and regardless of) any fetch
   if (!VIEW) {
     renderAll();
   } else if (VIEW.mode === 'patient') {
