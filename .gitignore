@@ -9,5 +9,5 @@
 !.env.example
 .dev.vars
 
-# internal design docs — not for the public repo
-docs/superpowers/
+# internal implementation plans — not for the public repo (specs ARE committed)
+docs/superpowers/plans/
