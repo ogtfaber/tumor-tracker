@@ -766,6 +766,9 @@ main > section:nth-of-type(4) { animation-delay: .24s; }
 .publish-preview h4:first-child { margin-top: 0; }
 .publish-preview ul { margin: 0; padding-left: 1.1rem; }
 .publish-preview .preview-note { color: var(--ink-2); font-style: italic; }
+.publish-preview .preview-events { list-style: none; padding-left: 0; }
+.publish-preview .preview-events label { display: inline-flex; align-items: baseline; gap: .45rem; cursor: pointer; }
+.publish-preview .preview-events input { margin: 0; position: relative; top: .1rem; }
 .publish-consent {
   display: flex;
   gap: .5rem;

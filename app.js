@@ -1239,9 +1239,14 @@
       html += '</ul>';
     }
     if (state.events.length) {
-      html += '<h4>Events</h4><ul>';
+      html += '<h4>Events</h4>' +
+        '<p class="preview-note">Uncheck any event you do not want on the public page. ' +
+        'Your choice is remembered for future updates.</p>' +
+        '<ul class="preview-events">';
       state.events.forEach(function (e) {
-        html += '<li>' + esc(fmtDate(e.date) + ': ' + e.label) + '</li>';
+        html += '<li><label><input type="checkbox" data-publish-event="' + esc(e.id) + '"' +
+          (e.private === true ? '' : ' checked') + '> ' +
+          esc(fmtDate(e.date) + ': ' + e.label) + '</label></li>';
       });
       html += '</ul>';
     }
@@ -1259,13 +1264,16 @@
     return apiFetch('POST', '/api/publish', body);
   }
 
-  $('#btn-publish').addEventListener('click', function () {
+  function openPublishDialog() {
     $('#publish-dialog-code').textContent = state.code || '';
     $('#publish-preview').innerHTML = publishPreviewHtml();
     $('#publish-consent').checked = false;
     $('#publish-confirm').disabled = true;
+    $('#publish-confirm').textContent = getPublishToken() ? 'Update' : 'Publish';
     $('#publish-dialog').showModal();
-  });
+  }
+
+  $('#btn-publish').addEventListener('click', openPublishDialog);
 
   $('#publish-consent').addEventListener('change', function () {
     $('#publish-confirm').disabled = !this.checked;
@@ -1277,47 +1285,40 @@
     publishBusy = true;
     var btn = $('#publish-confirm');
     btn.disabled = true;
-    pushPublish(null).then(function (res) {
-      if (res.token) setPublished(res.token, res.summary.updatedAt);
+    // Persist the checkbox choices onto the events before pushing, so the
+    // preference survives in backups and pre-fills the next dialog.
+    $('#publish-preview').querySelectorAll('[data-publish-event]').forEach(function (box) {
+      var e = state.events.find(function (x) { return x.id === box.getAttribute('data-publish-event'); });
+      if (!e) return;
+      if (box.checked) delete e.private; else e.private = true;
+    });
+    save();
+    renderEvents();
+    var token = getPublishToken();
+    pushPublish(token).then(function (res) {
+      // res.token arrives on first publish, or when the server treated an
+      // update as a first publish (our entry was deleted elsewhere) — store
+      // the fresh token, or the copy could never be updated or removed again.
+      if (res.token || token) setPublished(res.token || token, res.summary.updatedAt);
       renderPublish();
-      toast('Published — thank you for sharing.');
+      toast(token ? 'Published copy updated.' : 'Published — thank you for sharing.');
       publishBusy = false;
       btn.disabled = false;
     }).catch(function (err) {
-      toast('Could not publish: ' + err.message);
+      // A 403 on update means the stored token no longer matches the
+      // server's — e.g. a backup restored without its token. Explain and
+      // point at the removal path instead of offering a confusing
+      // publish-as-new.
+      var hint = token && /token does not match/.test(err.message)
+        ? ' This copy can no longer update the public page. To remove the public copy, contact the site owner (see the footer).'
+        : '';
+      toast('Could not ' + (token ? 'update' : 'publish') + ': ' + err.message + hint);
       publishBusy = false;
       btn.disabled = false;
     });
   });
 
-  $('#btn-publish-update').addEventListener('click', function () {
-    if (publishBusy) return;
-    var token = getPublishToken();
-    if (!token) return;
-    publishBusy = true;
-    var btn = this;
-    btn.disabled = true;
-    pushPublish(token).then(function (res) {
-      // res.token only arrives when the server treated this as a first
-      // publish (our entry was deleted elsewhere) — store the fresh token,
-      // or the republished copy could never be updated or removed again.
-      setPublished(res.token || token, res.summary.updatedAt);
-      renderPublish();
-      toast('Published copy updated.');
-      publishBusy = false;
-      btn.disabled = false;
-    }).catch(function (err) {
-      // A 403 here means the stored token no longer matches the server's —
-      // e.g. a backup restored without its token. Per spec, explain and point
-      // at the removal path instead of offering a confusing publish-as-new.
-      var hint = /token does not match/.test(err.message)
-        ? ' This copy can no longer update the public page. To remove the public copy, contact the site owner (see the footer).'
-        : '';
-      toast('Could not update: ' + err.message + hint);
-      publishBusy = false;
-      btn.disabled = false;
-    });
-  });
+  $('#btn-publish-update').addEventListener('click', openPublishDialog);
 
   $('#btn-unpublish').addEventListener('click', function () {
     if (!armTwoStep(this, 'Click again to remove from the public gallery')) return;
