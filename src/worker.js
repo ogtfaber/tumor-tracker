@@ -241,7 +241,8 @@ async function handleResummarize(request, env) {
   for (const k of list.keys) {
     try {
       const entry = await env.PUBLISHED.getWithMetadata(k.name, 'json');
-      if (!entry.value || !entry.value.data) continue;
+      if (!entry.value) continue; // deleted between list() and get()
+      if (!entry.value.data) { failed.push(k.name); continue; }
       const now = new Date().toISOString();
       const summary = summarize(
         entry.value.data,
