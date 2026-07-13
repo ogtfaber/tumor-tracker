@@ -237,19 +237,24 @@ async function handleResummarize(request, env) {
   if (!isAdmin) return json({ error: 'Forbidden.' }, 403);
   const list = await env.PUBLISHED.list({ prefix: 'pub:' });
   let updated = 0;
+  const failed = [];
   for (const k of list.keys) {
-    const entry = await env.PUBLISHED.getWithMetadata(k.name, 'json');
-    if (!entry.value || !entry.value.data) continue;
-    const now = new Date().toISOString();
-    const summary = summarize(
-      entry.value.data,
-      entry.metadata?.publishedAt || now,
-      entry.metadata?.updatedAt || now,
-    );
-    await env.PUBLISHED.put(k.name, JSON.stringify(entry.value), { metadata: summary });
-    updated++;
+    try {
+      const entry = await env.PUBLISHED.getWithMetadata(k.name, 'json');
+      if (!entry.value || !entry.value.data) continue;
+      const now = new Date().toISOString();
+      const summary = summarize(
+        entry.value.data,
+        entry.metadata?.publishedAt || now,
+        entry.metadata?.updatedAt || now,
+      );
+      await env.PUBLISHED.put(k.name, JSON.stringify(entry.value), { metadata: summary });
+      updated++;
+    } catch {
+      failed.push(k.name);
+    }
   }
-  return json({ ok: true, updated });
+  return json(failed.length ? { ok: true, updated, failed } : { ok: true, updated });
 }
 
 // Serve index.html for a viewer route, stamped noindex. The app reads
