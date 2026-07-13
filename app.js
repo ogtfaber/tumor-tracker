@@ -1272,6 +1272,7 @@
   }
 
   function openPublishDialog() {
+    if (publishBusy) { toast('Still publishing — one moment.'); return; }
     $('#publish-dialog-code').textContent = state.code || '';
     $('#publish-preview').innerHTML = publishPreviewHtml();
     $('#publish-consent').checked = false;
@@ -1311,7 +1312,7 @@
       renderPublish();
       toast(token ? 'Published copy updated.' : 'Published — thank you for sharing.');
       publishBusy = false;
-      btn.disabled = false;
+      btn.disabled = !$('#publish-consent').checked;
     }).catch(function (err) {
       // A 403 on update means the stored token no longer matches the
       // server's — e.g. a backup restored without its token. Explain and
@@ -1322,7 +1323,7 @@
         : '';
       toast('Could not ' + (token ? 'update' : 'publish') + ': ' + err.message + hint);
       publishBusy = false;
-      btn.disabled = false;
+      btn.disabled = !$('#publish-consent').checked;
     });
   });
 
