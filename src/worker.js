@@ -227,42 +227,6 @@ async function handleDelete(request, env, code) {
   return json({ ok: true });
 }
 
-// Rebuild every published entry's card metadata from its stored dataset —
-// lets summary-shape changes (new fields, spark format) roll out without
-// anyone republishing. Values are re-put unchanged; timestamps carry over.
-async function handleResummarize(request, env) {
-  const given = request.headers.get('X-Admin-Key');
-  const isAdmin = !!(given && env.ADMIN_KEY &&
-    (await sha256hex(given)) === (await sha256hex(env.ADMIN_KEY)));
-  if (!isAdmin) return json({ error: 'Forbidden.' }, 403);
-  let updated = 0;
-  const failed = [];
-  let cursor;
-  do {
-    const list = await env.PUBLISHED.list({ prefix: 'pub:', cursor });
-    for (const k of list.keys) {
-      try {
-        const entry = await env.PUBLISHED.getWithMetadata(k.name, 'json');
-        if (!entry.value) continue; // deleted between list() and get()
-        if (!entry.value.data) { failed.push(k.name); continue; }
-        const now = new Date().toISOString();
-        const summary = summarize(
-          entry.value.data,
-          entry.metadata?.publishedAt || now,
-          entry.metadata?.updatedAt || now,
-        );
-        await env.PUBLISHED.put(k.name, JSON.stringify(entry.value), { metadata: summary });
-        updated++;
-      } catch (err) {
-        console.error('resummarize failed:', k.name, err);
-        failed.push(k.name);
-      }
-    }
-    cursor = list.list_complete ? null : list.cursor;
-  } while (cursor);
-  return json(failed.length ? { ok: true, updated, failed } : { ok: true, updated });
-}
-
 // Serve index.html for a viewer route, stamped noindex. The app reads
 // location.pathname to decide what to render. Viewer routes live one path
 // segment deep (/p/CODE), so a <base> tag is injected here to pin relative
@@ -297,7 +261,6 @@ export default {
           return json({ error: 'Too many requests — try again in a minute.' }, 429);
         }
       }
-      if (path === '/api/admin/resummarize' && request.method === 'POST') return handleResummarize(request, env);
       if (path === '/api/publish' && request.method === 'POST') return handlePublish(request, env);
       if (path === '/api/published' && request.method === 'GET') return handleList(env);
       if (oneMatch && request.method === 'GET') return handleGetOne(env, oneMatch[1]);

@@ -1,4 +1,4 @@
-# Explore gallery: sparkline preview, medication count, resummarize
+# Explore gallery: sparkline preview, medication count
 
 ## Goal
 Give /explore cards more signal: a small sparkline of the first tumor with
@@ -19,25 +19,19 @@ Cards render `spark` as an inline SVG polyline (2px, `--series-1`, no axes,
 `aria-hidden`) — no Chart.js instance per card. Cards without `spark` /
 `drugCount` (published before this change) render exactly as before.
 
-## Backfill / future migrations
-`POST /api/admin/resummarize` (X-Admin-Key, same secret as delete) lists all
-`pub:*` keys and rewrites each key's metadata from its stored dataset,
-preserving publishedAt/updatedAt and re-putting the last-read stored value
-(logically equivalent bytes). Published datasets are the source of truth;
-summaries are derived and can be regenerated at any time without users
-republishing. The endpoint isolates per-entry failures in a `failed: [keys]`
-array in the response, allowing healthy entries to update even when some
-entries have malformed data. Writes are last-write-wins: a publish racing
-the backfill for the same key can be reverted, so run it at a quiet moment.
+## Future migrations
+Published datasets (the KV *values*) are the source of truth; card summaries
+are derived metadata. Entries published before a summary-shape change simply
+lack the new fields until their owner republishes — cards must render
+gracefully without them. If the gallery ever grows enough that waiting for
+republishes is impractical, an admin resummarize endpoint can list all
+`pub:*` keys and rewrite each key's metadata from its stored dataset —
+no user involvement needed. Deliberately not built yet (one published
+entry exists today).
 
 ## Testing
 1. Publish a dataset with ≥ 2 measurements and 1 drug → summary has
    drugCount and spark; card shows line + "1 medication".
 2. Entry with pre-change metadata (no spark/drugCount) → card renders
    without sparkline or medication count.
-3. POST /api/admin/resummarize without/with wrong key → 403; with key →
-   `{ok, updated}` and stale entries gain spark/drugCount with timestamps
-   unchanged.
-4. Dark mode: sparkline uses the dark-theme series hue.
-5. A malformed stored entry does not abort the batch — it is reported in
-   `failed` while healthy entries still update.
+3. Dark mode: sparkline uses the dark-theme series hue.
