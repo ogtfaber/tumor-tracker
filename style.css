@@ -610,6 +610,20 @@ textarea { resize: vertical; }
 
 .list-empty { color: var(--ink-3); font-size: .85rem; font-style: italic; padding: .4rem 0; }
 
+.event-private-chip {
+  display: inline-block;
+  margin-left: .45rem;
+  padding: .05rem .45rem;
+  font-size: .68rem;
+  font-style: normal;
+  font-weight: 500;
+  color: var(--ink-3);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 /* ---------------- footer & toast ---------------- */
 
 .site-footer {

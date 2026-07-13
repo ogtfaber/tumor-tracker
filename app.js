@@ -1018,7 +1018,9 @@
       return '<div class="data-row' + (e.id === editingEventId ? ' editing' : '') + '">' +
         '<span class="tick"></span>' +
         '<span class="row-main">' + esc(e.label) +
-          (scope ? '<span class="row-note">' + esc(scope.name) + '</span>' : '') + '</span>' +
+          (scope ? '<span class="row-note">' + esc(scope.name) + '</span>' : '') +
+          (e.private === true ? '<span class="event-private-chip" title="Excluded when publishing — change it in the publish dialog">not published</span>' : '') +
+        '</span>' +
         '<span class="row-dates">' + fmtDate(e.date) + '</span>' +
         '<button type="button" class="icon-btn edit-btn" data-edit-event="' + e.id + '" title="Edit" aria-label="Edit event">✎</button>' +
         '<button type="button" class="icon-btn" data-del-event="' + e.id + '" title="Delete" aria-label="Delete event">✕</button>' +
