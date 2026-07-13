@@ -67,8 +67,39 @@ function validateDataset(raw) {
   return out;
 }
 
-// Gallery card data; stored as KV metadata (hard limit 1024 bytes — every
-// field here is short and bounded, diagnosis is capped at 40 chars).
+// Gallery card data; stored as KV *metadata* (hard limit 1024 bytes — every
+// field here is short and bounded, diagnosis is capped at 40 chars, and the
+// sparkline is thinned, then dropped, until the whole summary fits).
+const SPARK_POINTS = 24;
+
+// Preview series for the gallery card: the first tumor (in stored order)
+// whose first plottable key has at least two non-null values. Days are
+// offsets from the series' first date; values are rounded to 2 decimals.
+function sparkline(data) {
+  for (const t of data.tumors) {
+    for (const key of TYPES[t.type]) {
+      const pts = t.measurements.filter((m) => m[key] !== null);
+      if (pts.length < 2) continue;
+      const first = Date.parse(pts[0].date);
+      const d = pts.map((m) => Math.round((Date.parse(m.date) - first) / 86400000));
+      const v = pts.map((m) => Math.round(m[key] * 100) / 100);
+      return { d, v };
+    }
+  }
+  return null;
+}
+
+// Evenly thin a spark to at most `max` points, always keeping first and last.
+function thin(spark, max) {
+  const n = spark.d.length;
+  if (n <= max) return spark;
+  const pick = [];
+  for (let i = 0; i < max; i++) pick.push(Math.round((i * (n - 1)) / (max - 1)));
+  return { d: pick.map((j) => spark.d[j]), v: pick.map((j) => spark.v[j]) };
+}
+
+const metaBytes = (obj) => new TextEncoder().encode(JSON.stringify(obj)).length;
+
 function summarize(data, publishedAt, updatedAt) {
   const dates = [];
   let measurementCount = 0;
@@ -77,16 +108,23 @@ function summarize(data, publishedAt, updatedAt) {
     for (const m of t.measurements) dates.push(m.date);
   }
   dates.sort();
-  return {
+  const summary = {
     code: data.code,
     diagnosis: data.diagnosis,
     tumorCount: data.tumors.length,
     measurementCount,
+    drugCount: data.drugs.length,
     firstDate: dates[0] || null,
     lastDate: dates[dates.length - 1] || null,
     publishedAt,
     updatedAt,
   };
+  let spark = sparkline(data);
+  if (spark) spark = thin(spark, SPARK_POINTS);
+  if (spark && metaBytes({ ...summary, spark }) > 1000) spark = thin(spark, 12);
+  if (spark && metaBytes({ ...summary, spark }) > 1000) spark = null;
+  if (spark) summary.spark = spark;
+  return summary;
 }
 
 function json(data, status = 200, extra = {}) {

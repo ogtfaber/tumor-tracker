@@ -94,8 +94,10 @@ main, header, footer { position: relative; z-index: 1; }
 /* ---------------- site nav ---------------- */
 
 .site-nav {
-  position: relative;
-  z-index: 1;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--page);
   border-bottom: 1px solid var(--hairline);
 }
 .site-nav-inner {
@@ -891,6 +893,13 @@ body.viewer-explore .patient-field { display: none; }
   font-size: .82rem;
   color: var(--ink-2);
   line-height: 1.45;
+}
+.explore-card .explore-spark {
+  display: block;
+  width: 100%;
+  height: 2.1rem;
+  margin-top: .65rem;
+  color: var(--series-1);
 }
 .explore-empty {
   color: var(--ink-2);
