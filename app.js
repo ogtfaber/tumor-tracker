@@ -1198,6 +1198,11 @@
     if (VIEW) { $('#publish-section').hidden = true; return; }
     var dataExists = hasData(state);
     var token = getPublishToken();
+    var topBtn = $('#btn-publish-top');
+    topBtn.hidden = !dataExists;
+    topBtn.textContent = token ? 'Update published data' : 'Publish anonymously…';
+    topBtn.disabled = !token && !canPublish();
+    topBtn.title = topBtn.disabled ? 'Needs at least one tumor with two measurements.' : '';
     $('#publish-section').hidden = !dataExists;
     if (!dataExists) return;
     $('#btn-publish').hidden = !!token;
@@ -1276,6 +1281,7 @@
   }
 
   $('#btn-publish').addEventListener('click', openPublishDialog);
+  $('#btn-publish-top').addEventListener('click', openPublishDialog);
 
   $('#publish-consent').addEventListener('change', function () {
     $('#publish-confirm').disabled = !this.checked;
