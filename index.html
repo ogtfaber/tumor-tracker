@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
+<!-- This tool handles personal health data, including an anonymous public
+     gallery. Keep the whole site out of search engines and AI crawlers. -->
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
+<meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet">
 <title>NF2 Tumor Tracker — your scans, on one timeline</title>
 <meta name="description" content="A private, in-browser journal for NF2 tumor measurements. Plot your scans over time with your medications overlaid. Nothing ever leaves your device.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎗️</text></svg>">
@@ -219,6 +223,23 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+<dialog id="disclaimer-dialog" aria-labelledby="disclaimer-title">
+  <form method="dialog">
+    <h3 id="disclaimer-title">Before you start</h3>
+    <p class="dialog-note"><strong>NF2 Tumor Tracker is a personal record-keeping tool — not
+      medical advice, and not a medical device.</strong> It doesn’t diagnose, treat, or interpret
+      anything, and it can’t tell you whether a change in a measurement matters.</p>
+    <p class="dialog-note">Measurements vary between scanners, facilities, and readers, so a number
+      moving up or down here may not mean what it appears to. Always discuss your scans and trends
+      with your own care team, and never make or change a treatment decision based on this tool.</p>
+    <p class="dialog-note">Your data stays in this browser unless you explicitly choose “Publish
+      anonymously.”</p>
+    <div class="dialog-actions">
+      <button type="submit" id="disclaimer-ack" class="btn btn-primary">I understand</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="png-dialog">
   <form id="png-form" method="dialog">
     <h3>Save chart as image</h3>
@@ -235,14 +256,19 @@
 <dialog id="publish-dialog">
   <form id="publish-form" method="dialog">
     <h3>Publish anonymously</h3>
-    <p class="dialog-note">This publishes the data below to a page anyone can open, identified
-      only by ID <strong id="publish-dialog-code"></strong>. Read your own words — tumor names,
-      event labels — and remove anything identifying (hospitals, doctors, places, dates of
+    <p class="dialog-note">This publishes the data below to a page anyone on the internet can open,
+      identified only by ID <strong id="publish-dialog-code"></strong>. Read your own words — tumor
+      names, event labels — and remove anything identifying (hospitals, doctors, places, dates of
       well-known events) before publishing. Notes are never published.</p>
+    <p class="dialog-note">Two things to know: even with names removed, a rare diagnosis combined
+      with specific dates and details can sometimes still point back to a real person. And once a
+      page is public, search engines or archive sites may copy it — “Unpublish” removes your copy
+      here, but can’t guarantee those cached copies disappear.</p>
     <div id="publish-preview" class="publish-preview"></div>
     <label class="publish-consent">
       <input type="checkbox" id="publish-consent">
-      <span>I understand this will be publicly visible to anyone on the internet.</span>
+      <span>I understand this will be publicly visible to anyone on the internet, and that
+        unpublishing may not erase copies others have already cached.</span>
     </label>
     <div class="dialog-actions">
       <button type="button" id="publish-cancel" class="btn btn-ghost">Cancel</button>

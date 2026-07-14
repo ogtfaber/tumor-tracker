@@ -2,6 +2,10 @@
    Published datasets live in the PUBLISHED KV namespace under `pub:<CODE>`;
    the gallery summary is stored as KV *metadata* so listing needs no reads. */
 
+// Every response carries this: the site (including the public gallery) is
+// deliberately kept out of search engines and AI crawlers.
+const ROBOTS = 'noindex, nofollow, noarchive, nosnippet, noimageindex';
+
 const CODE_RE = /^[A-HJKMNP-Z2-9]{6}$/;
 const TOKEN_RE = /^[0-9a-f]{48}$/;
 const MAX_BODY = 100_000;
@@ -133,7 +137,7 @@ function json(data, status = 200, extra = {}) {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'X-Robots-Tag': 'noindex',
+      'X-Robots-Tag': ROBOTS,
       'Cache-Control': 'no-store',
       ...extra,
     },
@@ -243,7 +247,7 @@ async function serveApp(env, url) {
   const res = await env.ASSETS.fetch(new Request(new URL('/', url.origin)));
   const html = (await res.text()).replace('<head>', '<head>\n<base href="/">');
   const out = new Response(html, res);
-  out.headers.set('X-Robots-Tag', 'noindex');
+  out.headers.set('X-Robots-Tag', ROBOTS);
   out.headers.delete('Content-Length');
   out.headers.delete('ETag');
   return out;
@@ -274,6 +278,11 @@ export default {
       return json({ error: 'Not found.' }, 404);
     }
 
-    return env.ASSETS.fetch(request);
+    // Static assets (index at /, style.css, app.js, robots.txt, …). Stamp the
+    // same noindex directive so crawlers that fetch a file directly still see it.
+    const asset = await env.ASSETS.fetch(request);
+    const out = new Response(asset.body, asset);
+    out.headers.set('X-Robots-Tag', ROBOTS);
+    return out;
   },
 };
