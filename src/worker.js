@@ -38,7 +38,8 @@ function validateDataset(raw) {
     const tumor = { id: str(t.id, 40) || crypto.randomUUID(), name, type: t.type, measurements: [] };
     for (const m of Array.isArray(t.measurements) ? t.measurements : []) {
       if (!m || !isDate(m.date)) continue;
-      const rec = { id: str(m.id, 40) || crypto.randomUUID(), date: m.date, note: str(m.note, 500) };
+      // Measurement notes are deliberately not published — they stay in the browser.
+      const rec = { id: str(m.id, 40) || crypto.randomUUID(), date: m.date };
       for (const k of keys) rec[k] = isNum(m[k]) ? m[k] : null;
       if (keys.some((k) => rec[k] !== null)) tumor.measurements.push(rec);
     }
@@ -53,7 +54,7 @@ function validateDataset(raw) {
       id: str(d.id, 40) || crypto.randomUUID(), name, start: d.start,
       end: isDate(d.end) ? d.end : null,
       dose: isNum(d.dose) && d.dose > 0 ? d.dose : null,
-      note: str(d.note, 500),
+      // Medication notes are deliberately not published — they stay in the browser.
     });
     if (out.drugs.length >= 200) break;
   }
@@ -182,7 +183,12 @@ async function handlePublish(request, env) {
 async function handleGetOne(env, code) {
   const entry = await env.PUBLISHED.getWithMetadata('pub:' + code, 'json');
   if (!entry.value) return json({ error: 'Not published.' }, 404);
-  return json({ data: entry.value.data, summary: entry.metadata || null });
+  // Notes are no longer published; entries stored before that change may
+  // still carry them — strip on the way out so they never reach a viewer.
+  const data = entry.value.data;
+  for (const t of data.tumors || []) for (const m of t.measurements || []) delete m.note;
+  for (const d of data.drugs || []) delete d.note;
+  return json({ data, summary: entry.metadata || null });
 }
 
 // Soft per-IP limit on writes. KV is eventually consistent so this is

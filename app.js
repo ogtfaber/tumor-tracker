@@ -446,7 +446,7 @@
             '<span class="type-tag">' + typeDef.label + ' · ' + typeDef.unit + '</span></h3>' +
           '<div class="chart-head-right">' +
             '<div class="stat-line">' + statLine(tumor) + '</div>' +
-            (hasChart && !demo ? '<button type="button" class="btn btn-ghost btn-png" data-save-png title="Download this chart as a PNG image">Save PNG</button>' : '') +
+            (hasChart && !demo && !VIEW ? '<button type="button" class="btn btn-ghost btn-png" data-save-png title="Download this chart as a PNG image">Save PNG</button>' : '') +
           '</div>' +
         '</div>' +
         (tumor.measurements.length >= 1
@@ -1249,7 +1249,7 @@
     updBtn.hidden = !token;
     updBtn.disabled = !dirty;
     updBtn.title = dirty
-      ? 'Pushes the data as it is right now to the public page — check any new notes or labels for identifying details first.'
+      ? 'Pushes the data as it is right now to the public page — check any new names or labels for identifying details first.'
       : 'No changes since last publish.';
     $('#btn-unpublish').hidden = !token;
     var link = $('#publish-link');
@@ -1293,22 +1293,17 @@
   // Everything free-text, grouped, so the user can screen it before it goes public.
   function publishPreviewHtml() {
     var html = '<h4>Diagnosis</h4><p>' + esc(state.diagnosis || DEFAULT_DIAGNOSIS) + '</p>';
-    html += '<h4>Tumors &amp; measurement notes</h4><ul>';
+    html += '<h4>Tumors</h4><ul>';
     state.tumors.forEach(function (t) {
-      html += '<li>' + esc(t.name) + ' — ' + t.measurements.length + ' measurement(s)';
-      t.measurements.forEach(function (m) {
-        if (m.note) html += '<br><span class="preview-note">' + esc(fmtDate(m.date) + ': ' + m.note) + '</span>';
-      });
-      html += '</li>';
+      html += '<li>' + esc(t.name) + ' — ' + t.measurements.length + ' measurement(s)</li>';
     });
     html += '</ul>';
+    html += '<p class="preview-note">Measurement and medication notes are never published — they stay in this browser.</p>';
     if (state.drugs.length) {
       html += '<h4>Medications</h4><ul>';
       state.drugs.forEach(function (d) {
         html += '<li>' + esc(d.name) + (d.dose ? ' · ' + d.dose : '') +
-          ' · ' + esc(fmtDate(d.start)) + ' – ' + (d.end ? esc(fmtDate(d.end)) : 'ongoing');
-        if (d.note) html += '<br><span class="preview-note">' + esc(d.note) + '</span>';
-        html += '</li>';
+          ' · ' + esc(fmtDate(d.start)) + ' – ' + (d.end ? esc(fmtDate(d.end)) : 'ongoing') + '</li>';
       });
       html += '</ul>';
     }
@@ -1334,6 +1329,12 @@
     body.data.events = body.data.events
       .filter(function (e) { return e.private !== true; })
       .map(function (e) { delete e.private; return e; });
+    // Measurement and medication notes stay in the browser for now — same
+    // belt-and-braces as above, the server drops them too.
+    body.data.tumors.forEach(function (t) {
+      t.measurements.forEach(function (m) { delete m.note; });
+    });
+    body.data.drugs.forEach(function (d) { delete d.note; });
     if (token) body.token = token;
     return apiFetch('POST', '/api/publish', body);
   }
