@@ -36,6 +36,12 @@
   var PUBLISHED_AT_KEY = 'tumorTracker.publishedAt';
   var TOKEN_RE = /^[0-9a-f]{48}$/;
 
+  // First-run medical disclaimer. Shown once per browser before the tracker
+  // is used; bump the version to force everyone to see it again if the
+  // wording materially changes.
+  var DISCLAIMER_KEY = 'tumorTracker.disclaimerAck';
+  var DISCLAIMER_VERSION = '1';
+
   // ---------------- public viewer routes ----------------
   // /p/CODE renders one published dataset read-only; /explore lists all of
   // them. In these modes localStorage is never read or written — `state`
@@ -1497,12 +1503,25 @@
   Chart.register(window['chartjs-plugin-annotation']);
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
 
+  // Shown once, before the tracker is used, on the private home view only.
+  // Esc is blocked so the only way out is the acknowledge button — and only
+  // that button records the acknowledgement, so we never mark it seen unless
+  // the user actually dismissed it themselves.
+  function maybeShowDisclaimer() {
+    var ack = null;
+    try { ack = localStorage.getItem(DISCLAIMER_KEY); } catch (e) {}
+    if (ack === DISCLAIMER_VERSION) return;
+    var dlg = $('#disclaimer-dialog');
+    if (!dlg || typeof dlg.showModal !== 'function') return;
+    dlg.addEventListener('cancel', function (e) { e.preventDefault(); });
+    $('#disclaimer-ack').addEventListener('click', function () {
+      try { localStorage.setItem(DISCLAIMER_KEY, DISCLAIMER_VERSION); } catch (e) {}
+    });
+    dlg.showModal();
+  }
+
   function bootPatientView() {
     document.body.classList.add('viewer');
-    var robots = document.createElement('meta');
-    robots.name = 'robots';
-    robots.content = 'noindex';
-    document.head.appendChild(robots);
     document.title = 'Tumor Tracker — public view ' + VIEW.code;
     var note = $('#viewer-note');
     note.hidden = false;
@@ -1553,10 +1572,6 @@
 
   function bootExploreView() {
     document.body.classList.add('viewer', 'viewer-explore');
-    var robots = document.createElement('meta');
-    robots.name = 'robots';
-    robots.content = 'noindex';
-    document.head.appendChild(robots);
     document.title = 'Tumor Tracker — published datasets';
     var note = $('#viewer-note');
     note.hidden = false;
@@ -1592,6 +1607,7 @@
   renderNav(); // viewer modes render it before (and regardless of) any fetch
   if (!VIEW) {
     renderAll();
+    maybeShowDisclaimer();
   } else if (VIEW.mode === 'patient') {
     bootPatientView();
   } else {
